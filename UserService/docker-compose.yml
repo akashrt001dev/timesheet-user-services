@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  userservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME}
+      - SERVER_PORT=${SERVER_PORT}
+      - MONGO_CONNECTION_STRING=${MONGO_CONNECTION_STRING}
+      - MONGO_DATABASE=${MONGO_DATABASE}
+      - MONGO_HOST=${MONGO_HOST}
+      - MONGO_PORT=${MONGO_PORT}
+      - MONGO_USERNAME=${MONGO_USERNAME}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_VIRTUAL_HOST=${RABBITMQ_VIRTUAL_HOST}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_BUCKET_URL=${AWS_BUCKET_URL}
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+      # Exclude these from volume mount for better performance
+      - /app/__pycache__
+      - /app/.pytest_cache
+    restart: unless-stopped
+    networks:
+      - timesmart-network
+    depends_on:
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VIRTUAL_HOST}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_log:/var/log/rabbitmq
+    restart: unless-stopped
+    networks:
+      - timesmart-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+networks:
+  timesmart-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  rabbitmq_log:
+    driver: local

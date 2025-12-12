@@ -1,0 +1,151 @@
+from pydantic import BaseModel, Field
+try:
+    # Pydantic v2
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover
+    ConfigDict = None  # type: ignore
+from typing import List, Set, Optional
+from datetime import datetime
+
+
+from ..aggregates.root.User import User
+from ..entity.ProfilePicture import ProfilePicture
+from ..entity.Role import Role
+from ..valueobjects.AccessLevel import AccessLevel
+from ..valueobjects.ActionBy import ActionBy
+from ..valueobjects.Address import Address
+from ..valueobjects.BillingInfo import BillingInfo
+from ..valueobjects.Communication import Communication
+from ..valueobjects.Contract import Contract
+from ..valueobjects.ContractedServiceProviderType import ContractedServiceProviderType
+from ..valueobjects.LicenceDetails import LicenceDetails
+from ..valueobjects.NPIN import NPIN
+from ..valueobjects.Name import Name
+from ..valueobjects.Email import Email
+from ..valueobjects.PartnerId import PartnerId
+from ..valueobjects.Password import Password
+from ..valueobjects.Sites import Sites
+from ..valueobjects.SsoId import SsoId
+from ..valueobjects.SurrogateSchedule import SurrogateSchedule
+from ..valueobjects.Tenant import Tenant
+from ..valueobjects.Title import Title
+from ..valueobjects.UserType import UserType
+
+class UserDTO(BaseModel):
+    # Accept both field names and aliases across pydantic versions
+    if ConfigDict:
+        model_config = ConfigDict(populate_by_name=True)  # type: ignore
+    else:
+        class Config:
+            allow_population_by_field_name = True
+
+    id: Optional[str] = None
+    name: 'Name'
+    userType: Optional['UserType'] = None
+    contracts: Optional[List['Contract']] = []
+    title: Optional['Title'] = None
+    email: 'Email'
+    password: 'Password'
+    communication: 'Communication'
+    roles: List['Role'] = Field(default_factory=list)
+    address: Optional['Address'] = None
+    tenant: 'Tenant'
+    partnerId: Optional['PartnerId'] = None
+    sites: Optional['Sites'] = None
+    # Accept lowercase 'npin' from requests, map to internal nPIN
+    nPIN: Optional['NPIN'] = Field(None, alias="npin")
+    serviceProviderType: Optional['ContractedServiceProviderType'] = None
+    isExecutiveAccessLevelNeeded: bool = Field(False, alias="executiveAccessLevelNeeded")
+    accessLevel: Optional['AccessLevel'] = None
+    isSiteLevelResponsible: bool = Field(False, alias="siteLevelResponsible")
+    isDepartmentLevelResponsible: bool = Field(False, alias="departmentLevelResponsible")
+    isActivated: bool = Field(False, alias="activated")
+    isInvited: bool = Field(False, alias="invited")
+    isPersonalEmailAddressAllowed: bool = Field(False, alias="personalEmailAddressAllowed")
+    isDeleted: bool = Field(False, alias="deleted")
+    licenceDetails: Optional['LicenceDetails'] = None
+    isBlocked: bool = Field(False, alias="blocked")
+    userCreatedDate: Optional[datetime] = None
+    userBlockedOrDeactivatedDate: Optional[datetime] = None
+    currentLogin: Optional[datetime] = None
+    lastLogin: Optional[datetime] = None
+    avgLoginCount: int = 0
+    deactivatedBy: Optional['ActionBy'] = None
+    # Accept camelCase 'invitedBy' from requests
+    InvitedBy: Optional['ActionBy'] = Field(None, alias="invitedBy")
+    passwordCreatedDate: Optional[datetime] = None
+    profilePic: Optional['ProfilePicture'] = None
+    ssoId: Optional['SsoId'] = None
+    professionalServicesBilling: Optional['BillingInfo'] = None
+    isSurrogateEnabled: bool = Field(False, alias="surrogateEnabled")
+    surrogateSchedule: Optional[List['SurrogateSchedule']] = []
+
+    def to_domain(self) -> 'User':
+        from ..aggregates.root.User import User
+        payload = {}
+        # Required domain fields
+        payload['name'] = self.name
+        payload['email'] = self.email
+        payload['password'] = self.password
+        payload['communication'] = self.communication
+        payload['tenant'] = self.tenant
+        # Straight mappings
+        if self.id is not None:
+            payload['id'] = self.id
+        if self.userType is not None:
+            payload['userType'] = self.userType
+        if self.contracts is not None:
+            payload['contracts'] = self.contracts
+        if self.title is not None:
+            payload['title'] = self.title
+        if self.roles is not None:
+            payload['roles'] = list(self.roles)
+        if self.address is not None:
+            payload['address'] = self.address
+        if self.partnerId is not None:
+            payload['partnerId'] = self.partnerId
+        if self.sites is not None:
+            payload['sites'] = self.sites
+        if self.nPIN is not None:
+            payload['nPIN'] = self.nPIN
+        if self.serviceProviderType is not None:
+            payload['serviceProviderType'] = self.serviceProviderType
+        if self.accessLevel is not None:
+            payload['accessLevel'] = self.accessLevel
+        if self.licenceDetails is not None:
+            payload['licenceDetails'] = self.licenceDetails
+        if self.userCreatedDate is not None:
+            payload['userCreatedDate'] = self.userCreatedDate
+        if self.userBlockedOrDeactivatedDate is not None:
+            payload['userBlockedOrDeactivatedDate'] = self.userBlockedOrDeactivatedDate
+        if self.currentLogin is not None:
+            payload['currentLogin'] = self.currentLogin
+        if self.lastLogin is not None:
+            payload['lastLogin'] = self.lastLogin
+        if self.avgLoginCount is not None:
+            payload['avgLoginCount'] = self.avgLoginCount
+        if self.deactivatedBy is not None:
+            payload['deactivatedBy'] = self.deactivatedBy
+        if self.InvitedBy is not None:
+            payload['InvitedBy'] = self.InvitedBy
+        if self.passwordCreatedDate is not None:
+            payload['passwordCreatedDate'] = self.passwordCreatedDate
+        if self.profilePic is not None:
+            payload['profilePic'] = self.profilePic
+        if self.ssoId is not None:
+            payload['ssoId'] = self.ssoId
+        if self.professionalServicesBilling is not None:
+            payload['professionalServicesBilling'] = self.professionalServicesBilling
+        if self.surrogateSchedule is not None:
+            payload['surrogateSchedule'] = self.surrogateSchedule
+        # Booleans (explicit to ensure alias names map to internal 'is*' fields)
+        payload['isExecutiveAccessLevelNeeded'] = bool(self.isExecutiveAccessLevelNeeded)
+        payload['isSiteLevelResponsible'] = bool(self.isSiteLevelResponsible)
+        payload['isDepartmentLevelResponsible'] = bool(self.isDepartmentLevelResponsible)
+        payload['isActivated'] = bool(self.isActivated)
+        payload['isInvited'] = bool(self.isInvited)
+        payload['isPersonalEmailAddressAllowed'] = bool(self.isPersonalEmailAddressAllowed)
+        payload['isDeleted'] = bool(self.isDeleted)
+        payload['isBlocked'] = bool(self.isBlocked)
+        payload['isSurrogateEnabled'] = bool(self.isSurrogateEnabled)
+        return User(**payload)

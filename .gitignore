@@ -1,0 +1,7 @@
+Java/
+migrator/
+logs/
+__pycache__/
+*.pyc
+venv/
+*.env

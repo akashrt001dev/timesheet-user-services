@@ -1,0 +1,5 @@
+from enum import Enum
+
+class NotificationType(str, Enum):
+    ENTITY_CREATION_INSTANT = "ENTITY_CREATION_INSTANT"
+    ENTITY_CREATION_NDAYS = "ENTITY_CREATION_NDAYS"

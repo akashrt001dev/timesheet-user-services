@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  userservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-service-prod
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME}
+      - SERVER_PORT=${SERVER_PORT}
+      - APP_SERVER_URL=${APP_SERVER_URL}
+      - MONGO_CONNECTION_STRING=${MONGO_CONNECTION_STRING}
+      - MONGO_DATABASE=${MONGO_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_VIRTUAL_HOST=${RABBITMQ_VIRTUAL_HOST}
+      - ENTITY_CLIENT_URL=${ENTITY_CLIENT_URL}
+      - CONTRACT_CLIENT_URL=${CONTRACT_CLIENT_URL}
+      - TIMESHEET_CLIENT_URL=${TIMESHEET_CLIENT_URL}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_BUCKET_URL=${AWS_BUCKET_URL}
+      - SSO_URL=${SSO_URL}
+      - PROTOCOL=${PROTOCOL}
+      - APP_BASE_URL=${APP_BASE_URL}
+      - APP_CONTEXT=${APP_CONTEXT}
+      - FILE_SERVER_PATH=${FILE_SERVER_PATH}
+      - FILE_SERVER_BASE_URL=${FILE_SERVER_BASE_URL}
+      - MASTER_ENTITY_NAME=${MASTER_ENTITY_NAME}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - timesmart-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  timesmart-network:
+    driver: bridge
