@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   userservice:
     build:
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile
     container_name: user-service
     ports:
       - "8001:8001"
