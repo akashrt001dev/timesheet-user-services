@@ -2469,6 +2469,53 @@ class UserService:
                     # This is simplified - in production use proper SCIM filter parsing
                     if group.members and value and 'value' in value:
                         group.members = [m for m in group.members if m.value != value['value']]
+
+    async def getUserAccessScope(self, tenantId: str, userId: str) -> Dict[str, Any]:
+        """
+        Get user's access scope (permissions, site/department access, contracts, etc.)
+        Equivalent to Java: getUserAccessScope(String tenantId, String userId)
+        """
+        try:
+            # Get user
+            user = await self.userRepository.findById(userId)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Build access scope
+            accessScope = {
+                "userId": userId,
+                "roles": [role.roleName for role in (user.roles or [])],
+                "sites": [],
+                "departments": [],
+                "contracts": [],
+                "accessLevel": user.accessLevel.value if user.accessLevel else "USER"
+            }
+            
+            # Add site access
+            if user.sites and user.sites.sites:
+                for site in user.sites.sites:
+                    site_info = {
+                        "siteId": site.id,
+                        "siteName": site.siteName if hasattr(site, 'siteName') else "",
+                        "responsibility": site.siteResponsibility.dict() if site.siteResponsibility else {}
+                    }
+                    accessScope["sites"].append(site_info)
+            
+            # Add contract access
+            if user.contracts:
+                for contract in user.contracts:
+                    contract_info = {
+                        "contractId": contract.id if hasattr(contract, 'id') else "",
+                        "contractName": contract.contractName if hasattr(contract, 'contractName') else ""
+                    }
+                    accessScope["contracts"].append(contract_info)
+            
+            return accessScope
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.LOG.error(f"Error getting user access scope: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to get access scope: {str(e)}")
                 # Add more paths as needed
         
         # Update the group through regular update mechanism

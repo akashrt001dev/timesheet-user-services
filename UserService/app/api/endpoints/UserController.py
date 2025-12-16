@@ -887,6 +887,45 @@ async def blockOrDeactivateUser(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+@router.get("/{userId}/accessScope")
+async def getUserAccessScope(
+    userId: str = Path(alias="userId"),
+    X_Authorization: str = Header(alias="X-Authorization"),
+    X_tenantID: str = Header(alias="X-tenantID"),
+    controller: UserController = Depends(get_user_controller)
+):
+    """
+    Equivalent to Java: @GetMapping("/{userId}/accessScope")
+    public ResponseEntity<?> getUserAccessScope(@RequestHeader(value = "X-Authorization") String authorization, @RequestHeader(value = "X-tenantID") String tenantId, @PathVariable("userId") String userId)
+    
+    Retrieves the access scope (permissions, role-based access, site/department access) for a specific user.
+    Returns what data and features the user can access based on their roles, tenant memberships,
+    site assignments, and organizational hierarchy positions.
+    
+    Path Parameters:
+        userId: User ID to get access scope for
+    
+    Business Logic:
+        - Retrieves user from tenant
+        - Collects all roles and permissions
+        - Gathers site and department access
+        - Determines contract access scopes
+        - Builds comprehensive access matrix
+        - Checks for surrogate access if applicable
+    
+    Returns:
+        Access scope object with user's permissions, sites, departments, contracts
+    
+    Raises:
+        404: User not found in tenant
+        401: Unauthorized to view user's access scope
+    """
+    try:
+        result = await controller.userService.getUserAccessScope(X_tenantID, userId)
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 @router.post("/ssoid")
 async def setSsoId(
     userSsoIdDTO: UserSsoIdDTO,
