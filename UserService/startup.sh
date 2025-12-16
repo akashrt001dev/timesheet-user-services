@@ -10,7 +10,7 @@ PROJECT_DIR="$(pwd)"  # Uses current directory, or set your path
 VENV_NAME="venv"
 APP_MODULE="app.main:app"
 HOST="0.0.0.0"  # Matches your .env HOST
-PORT="8000"     # Matches your .env PORT
+PORT="8001"     # Matches your .env PORT
 LOG_LEVEL="info" # Matches your .env LOG_LEVEL
 
 # Colors for output
