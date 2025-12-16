@@ -252,7 +252,7 @@ setup_dev() {
 
 # Application Configuration
 ENVIRONMENT=development
-PORT=8000
+PORT=8001
 DEBUG=true
 LOG_LEVEL=INFO
 
@@ -284,8 +284,8 @@ JWT_EXPIRATION=86400
 JWT_ALGORITHM=HS256
 
 # Server Configuration
-SERVER_URL=http://localhost:8000/user-management-service
-BASE_URL=http://localhost:8000
+SERVER_URL=http://localhost:8001/user-management-service
+BASE_URL=http://localhost:8001
 HOST=0.0.0.0
 
 # Service Discovery (Eureka) - Enabled for development
@@ -297,7 +297,10 @@ SERVER_PORT=8000
 
 # External Services
 CONTRACT_SERVICE_URL=http://localhost:8002/
+ENTITY_CLIENT_URL="http://localhost:8003/"
+ENTITY_SERVICE_URL="http://localhost:8003/"
 TIMESHEET_SERVICE_URL=http://localhost:8004/
+
 
 # File Storage Configuration
 FILE_STORAGE_PATH=./storage
