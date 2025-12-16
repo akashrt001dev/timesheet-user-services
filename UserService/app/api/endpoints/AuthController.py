@@ -30,17 +30,29 @@ async def get_jwt_util_dep():
 @router.get("/login")
 async def login(
     request: Request,
-    auth_header: str = Header(..., alias="Authorization", description="Bearer token for authentication", example="Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6..."),
-    x_tenant_id: str = Header(..., alias="X-tenantID", description="Tenant ID"),
+    auth_header: Optional[str] = Header(None, alias="Authorization", description="Bearer token for authentication", example="Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6..."),
+    x_tenant_id: Optional[str] = Header(None, alias="X-tenantID", description="Tenant ID"),
     userService: UserService = Depends(get_user_service_dep),
     userDetailService: JwtUserDetailService = Depends(get_jwt_user_detail_service_dep),
     jwtUtil: JwtUtil = Depends(get_jwt_util_dep)
 ):
     """
-    Equivalent to Java: @GetMapping("/login")
+    Equivalent to Java: @PostMapping("/login")
     public ResponseEntity<?> login(@RequestHeader(value = "Authorization") String authorization, @RequestHeader(value = "X-tenantID") String tenantId, @RequestHeader HttpHeaders headers)
     """
     try:
+        # Validate required headers
+        if not auth_header:
+            return JSONResponse(
+                content={"error": "Authorization header is required"},
+                status_code=401
+            )
+        if not x_tenant_id:
+            return JSONResponse(
+                content={"error": "X-tenantID header is required"},
+                status_code=400
+            )
+        
         # Extract headers similar to Java HttpHeaders
         headers_dict = dict(request.headers)
 

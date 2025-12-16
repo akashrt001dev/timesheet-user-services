@@ -440,13 +440,18 @@ class UserService:
         user = None
         
         if not isUserAvailableInTenant:
-            user = User()
-            user.ssoId = SsoId(id=userName)
-            user.tenant = Tenant(tenantId=tenantId)
-            user.userType = UserType.CONTRACTED_SERVICE_PROVIDER_USER
-            user.isActivated = False
-            user.isInvited = False
-            user.roles = []
+            # Create a Name object with the userName (using as both firstName and lastName)
+            from ..models.valueobjects.Name import Name
+            
+            user = User(
+                name=Name(firstName=userName, lastName=""),
+                tenant=Tenant(tenantId=tenantId),
+                ssoId=SsoId(id=userName),
+                userType=UserType.CONTRACTED_SERVICE_PROVIDER_USER,
+                isActivated=False,
+                isInvited=False,
+                roles=[]
+            )
             
             user = await self.userRepository.save(user)
         else:
