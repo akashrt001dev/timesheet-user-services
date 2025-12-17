@@ -90,9 +90,9 @@ async def login(
         userID = jwtUtil.getUserIdFromToken(accessToken)
         _ssoId = SsoId(id=ssoId)
         
-        print(f"[LOGIN] ║ ✓ JWT token created: userID={userID}")
+        print(f"[LOGIN]  JWT token created: userID={userID}")
 
-        print(f"[LOGIN] ║ Step 4: Recording login activity...")
+        print(f"[LOGIN]  Step 4: Recording login activity...")
         print(f"[LOGIN] =========================================================================")
 
         print(f"DEBUG: Received authorization token: {auth_header}")
@@ -103,11 +103,11 @@ async def login(
 
         avgLoginCount = await userService.getUserAvgLoginCount(userID)
         avgLoginSession = await userService.getUserAvgLoginSession(userID)
-        await userService.saveLoginDetail(_ssoId, avgLoginCount, avgLoginSession)
+        await userService.saveLoginDetail(x_tenant_id, _ssoId, avgLoginCount, avgLoginSession)
         
-        print(f"[LOGIN] ║ ✓ Login activity recorded")
+        print(f"[LOGIN]  ✓ Login activity recorded")
 
-        print(f"[LOGIN] ║ ✓✓✓ LOGIN SUCCESSFUL ✓✓✓ (202 Accepted)")
+        print(f"[LOGIN]  ✓✓✓ LOGIN SUCCESSFUL ✓✓✓ (202 Accepted)")
 
         return JSONResponse(content=authResponse.dict(), status_code=202)
 

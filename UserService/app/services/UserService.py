@@ -442,6 +442,7 @@ class UserService:
         3. Create new user if not found in any tier
         
         CRITICAL: Never modify existing users - return them as-is to preserve MongoDB _id fields.
+        Matches Java UserService.getOrCreateUser() behavior.
         """
         try:
             print(f"[GETORCREATE] Called with userName={userName}, tenantId={tenantId}")
@@ -840,17 +841,19 @@ class UserService:
         """
         return await self.queryProcessor.getUserAvgLoginSession(userID)
 
-    async def saveLoginDetail(self, ssoId: SsoId, avgLoginCount: int, avgLoginSession: timedelta) -> None:
+    async def saveLoginDetail(self, tenantId: str, ssoId: SsoId, avgLoginCount: int, avgLoginSession: timedelta) -> None:
         """
         Save login detail using partial update (does not overwrite other fields).
+        Signature matches Java: saveLoginDetail(tenantId, ssoId, avgLoginCount, avgLoginSession)
         """
         try:
-            user = await self.userRepository.findBySsoId(ssoId)
-            if user:
+            tenant = Tenant(tenantId=tenantId)
+            user_result = await self.userRepository.findBySsoIdAndTenant(ssoId, tenant)
+            if user_result:
                 # Use updateById for partial update instead of full save
                 # This prevents overwriting other user fields
                 await self.userRepository.updateById(
-                    user.id,
+                    user_result.id,
                     {
                         "avgLoginCount": avgLoginCount,
                         "avgLoginSession": avgLoginSession
