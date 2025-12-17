@@ -1394,6 +1394,16 @@ async def getUserListById(
         user = await controller.userService.getUserListById(X_tenantID, userId)
         user_dict = user.model_dump(by_alias=True, exclude_none=False)
         
+        # Flatten sites structure - extract sites array from sites.sites
+        if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
+            user_dict["sites"] = user_dict["sites"]["sites"]
+        
+        # Flatten suffix structure - extract just the suffix string value
+        if "name" in user_dict and isinstance(user_dict["name"], dict):
+            if "suffix" in user_dict["name"] and isinstance(user_dict["name"]["suffix"], dict):
+                # Extract just the suffix string value, or set to null if not available
+                user_dict["name"]["suffix"] = user_dict["name"]["suffix"].get("suffix")
+        
         # Get access scope for the user
         try:
             access_scope_result = await controller.userService.getUserAccessScope(X_tenantID, userId)
