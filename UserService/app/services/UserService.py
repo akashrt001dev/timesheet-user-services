@@ -437,40 +437,40 @@ class UserService:
         Get or create user based on username and tenant.
         
         Lookup Strategy (in order):
-        1. Try to find by email + tenant (case-insensitive) - PRIMARY because users may be created with email, ssoId can be null
-        2. Try to find by ssoId + tenant (case-insensitive) - when ssoId is already set
+        1. Try to find by ssoId + tenant (MOST RELIABLE - works for all existing users)
+        2. Try to find by email + tenant (fallback for email-based lookups)
         3. Create new user if not found in any tier
         
-        This ensures existing users are recognized regardless of whether they have ssoId set.
+        CRITICAL: Never modify existing users - return them as-is to preserve MongoDB _id fields.
         """
         try:
             print(f"[GETORCREATE] Called with userName={userName}, tenantId={tenantId}")
             
             tenant = Tenant(tenantId=tenantId)
             
-            # TIER 1: PRIMARY - Try to find by email (most reliable since users created with email)
-            print(f"[GETORCREATE] [TIER1] Searching by email: {userName}")
+            # TIER 1: PRIMARY - Try to find by ssoId + tenant (case-insensitive regex)
+            # This is the MOST RELIABLE because existing users already have ssoId set
+            print(f"[GETORCREATE] [TIER1] Searching by ssoId: {userName}")
+            try:
+                existing_user = await self.userRepository.findBySsoIdAndTenant(userName, tenant)
+                if existing_user:
+                    print(f"[GETORCREATE] [TIER1] ✓ FOUND by ssoId: ID={existing_user.id}")
+                    # Return existing user AS-IS - DO NOT MODIFY
+                    return existing_user
+            except Exception as e:
+                print(f"[GETORCREATE] [TIER1] SsoId+Tenant search failed: {str(e)}")
+            
+            # TIER 2: Try to find by email + tenant (fallback)
+            print(f"[GETORCREATE] [TIER2] Searching by email: {userName}")
             try:
                 email_obj = Email(officialEmail=userName)
                 existing_user = await self.userRepository.findByEmailAndTenant(email_obj, tenant)
                 if existing_user:
-                    print(f"[GETORCREATE] [TIER1] ✓ FOUND by email: ID={existing_user.id}, "
-                                  f"userType={existing_user.userType}, ssoId={existing_user.ssoId.id if existing_user.ssoId else 'None'}")
-                    # Return existing user as-is, do not modify
+                    print(f"[GETORCREATE] [TIER2] ✓ FOUND by email: ID={existing_user.id}")
+                    # Return existing user AS-IS - DO NOT MODIFY
                     return existing_user
             except Exception as e:
-                print(f"[GETORCREATE] [TIER1] Email search failed: {str(e)}")
-            
-            # TIER 2: Try to find by ssoId + tenant (case-insensitive regex search)
-            print(f"[GETORCREATE] [TIER2] Searching by ssoId: {userName}")
-            try:
-                existing_user = await self.userRepository.findBySsoIdAndTenant(userName, tenant)
-                if existing_user:
-                    print(f"[GETORCREATE] [TIER2] ✓ FOUND by ssoId: ID={existing_user.id}, "
-                                  f"userType={existing_user.userType}")
-                    return existing_user
-            except Exception as e:
-                print(f"[GETORCREATE] [TIER2] SsoId+Tenant search failed: {str(e)}")
+                print(f"[GETORCREATE] [TIER2] Email+Tenant search failed: {str(e)}")
             
             # TIER 3: Fallback - Try case-insensitive ssoId search (any tenant)
             print(f"[GETORCREATE] [TIER3] Fallback ssoId search (any tenant): {userName}")
@@ -478,11 +478,12 @@ class UserService:
                 existing_user = await self.userRepository.findBySsoId(userName)
                 if existing_user and existing_user.tenant.tenantId == tenantId:
                     print(f"[GETORCREATE] [TIER3] ✓ FOUND by ssoId (fallback): ID={existing_user.id}")
+                    # Return existing user AS-IS - DO NOT MODIFY
                     return existing_user
             except Exception as e:
                 print(f"[GETORCREATE] [TIER3] Fallback search failed: {str(e)}")
             
-            # NOT FOUND - Create new user
+            # NOT FOUND - Create new user only when all lookups fail
             print(f"[GETORCREATE] [CREATE] User not found in any tier, creating new user...")
             from ..models.valueobjects.Name import Name
             
