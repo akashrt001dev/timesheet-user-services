@@ -54,9 +54,7 @@ async def login(
                 content={"error": "X-tenantID header is required"},
                 status_code=400
             )
-        print(f"DEBUG: Received authorization token: {auth_header}")
-        print(f"DEBUG: Received x_tenant_id parameter: {x_tenant_id}")
-        print(f"DEBUG: All headers: {headers_dict}")
+        
         # Extract headers similar to Java HttpHeaders
         headers_dict = dict(request.headers)
         print(f"[LOGIN] ========================================================================")
@@ -97,6 +95,9 @@ async def login(
         print(f"[LOGIN] ║ Step 4: Recording login activity...")
         print(f"[LOGIN] =========================================================================")
 
+        print(f"DEBUG: Received authorization token: {auth_header}")
+        print(f"DEBUG: Received x_tenant_id parameter: {x_tenant_id}")
+        print(f"DEBUG: All headers: {headers_dict}")
         
         await userService.saveLoginDateTime(_ssoId, x_tenant_id)
 
