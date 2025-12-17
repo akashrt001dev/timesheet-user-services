@@ -1398,11 +1398,10 @@ async def getUserListById(
         if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
             user_dict["sites"] = user_dict["sites"]["sites"]
         
-        # Flatten suffix structure - extract just the suffix string value
-        if "name" in user_dict and isinstance(user_dict["name"], dict):
-            if "suffix" in user_dict["name"] and isinstance(user_dict["name"]["suffix"], dict):
-                # Extract just the suffix string value, or set to null if not available
-                user_dict["name"]["suffix"] = user_dict["name"]["suffix"].get("suffix")
+        # Convert null id to empty string in title object
+        if "title" in user_dict and isinstance(user_dict["title"], dict):
+            if "id" in user_dict["title"] and user_dict["title"]["id"] is None:
+                user_dict["title"]["id"] = ""
         
         # Get access scope for the user
         try:
