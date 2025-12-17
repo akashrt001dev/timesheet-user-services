@@ -31,14 +31,24 @@ class MongoRepository(ABC, Generic[T]):
         pass
     
     def _document_to_model(self, doc: Dict[str, Any]) -> T:
-        """Convert a MongoDB document to a model instance."""
+        """Convert a MongoDB document to a model instance.
+        Handles MongoDB _id fields (both top-level and nested in value objects like ssoId).
+        """
         if doc is None:
             return None
         
-        # Handle MongoDB _id field conversion
+        # Handle MongoDB _id field conversion at top level
         if "_id" in doc:
             doc["id"] = str(doc["_id"])
             del doc["_id"]
+        
+        # Handle nested _id fields in value objects (e.g., ssoId._id -> ssoId.id)
+        # This ensures MongoDB's nested structure { ssoId: { _id: "value" } } is properly converted
+        for key, value in doc.items():
+            if isinstance(value, dict) and "_id" in value and "id" not in value:
+                # Copy _id to id for nested objects
+                value["id"] = value["_id"]
+                # Keep _id for backward compatibility if needed, but Pydantic will use id
         
         model_class = self.get_model_class()
         try:

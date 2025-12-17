@@ -1290,10 +1290,3 @@ async def getUserListById(
         raise he
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    try:
-        user = await controller.userService.getUserListById(X_tenantID, userId)
-        return user.model_dump(by_alias=True, exclude_none=False)
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
