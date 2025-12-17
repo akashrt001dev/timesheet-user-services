@@ -809,14 +809,24 @@ class UserService:
 
     async def saveLoginDateTime(self, ssoId: SsoId, tenantId: str) -> None:
         """
-        Save login date time.
+        Save login date time using partial update (does not overwrite other fields).
         """
-        user = await self.userRepository.findBySsoId(ssoId)
-        currentLoginDateTime = datetime.now()
-        lastLoginDateTime = user.currentLogin
-        user.lastLogin = lastLoginDateTime
-        user.currentLogin = currentLoginDateTime
-        await self.userRepository.save(user)
+        try:
+            user = await self.userRepository.findBySsoId(ssoId)
+            if user:
+                currentLoginDateTime = datetime.now()
+                # Use updateById for partial update instead of full save
+                # This prevents overwriting other user fields
+                await self.userRepository.updateById(
+                    user.id,
+                    {
+                        "lastLogin": user.currentLogin,
+                        "currentLogin": currentLoginDateTime
+                    }
+                )
+        except Exception as e:
+            print(f"[LOGIN] Warning: Failed to save login datetime: {str(e)}")
+            # Don't fail login just because we couldn't save the timestamp
 
     async def getUserAvgLoginCount(self, userID: str) -> int:
         """
@@ -832,12 +842,23 @@ class UserService:
 
     async def saveLoginDetail(self, ssoId: SsoId, avgLoginCount: int, avgLoginSession: timedelta) -> None:
         """
-        Save login detail.
+        Save login detail using partial update (does not overwrite other fields).
         """
-        user = await self.userRepository.findBySsoId(ssoId)
-        user.avgLoginCount = avgLoginCount
-        user.avgLoginSession = avgLoginSession
-        await self.userRepository.save(user)
+        try:
+            user = await self.userRepository.findBySsoId(ssoId)
+            if user:
+                # Use updateById for partial update instead of full save
+                # This prevents overwriting other user fields
+                await self.userRepository.updateById(
+                    user.id,
+                    {
+                        "avgLoginCount": avgLoginCount,
+                        "avgLoginSession": avgLoginSession
+                    }
+                )
+        except Exception as e:
+            print(f"[LOGIN] Warning: Failed to save login detail: {str(e)}")
+            # Don't fail login just because we couldn't save the login details
 
     async def getUserSession(self) -> Dict[str, Any]:
         """
