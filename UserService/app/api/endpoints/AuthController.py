@@ -57,29 +57,32 @@ async def login(
         
         # Extract headers similar to Java HttpHeaders
         headers_dict = dict(request.headers)
+        print(f"DEBUG: Received authorization token: {auth_header}")
+        print(f"DEBUG: Received x_tenant_id parameter: {x_tenant_id}")
+        print(f"DEBUG: All headers: {headers_dict}")
+        
         print(f"[LOGIN] ========================================================================")
         print(f"[LOGIN]  LOGIN REQUEST STARTED")
         print(f"[LOGIN]  Tenant ID: {x_tenant_id}")
         print(f"[LOGIN]  Token: {auth_header[:50]}..." if len(auth_header) > 50 else f"[LOGIN] ║ Token: {auth_header}")
 
-        print(f"[LOGIN] =========================================================================")
         print(f"[LOGIN]  Step 1: Extracting username from OAuth token...")
         
         userName = await userService.extractUserNameFromOauthJwtToken(auth_header, headers_dict)
         
         if not userName:
-            print(f"[LOGIN]  ✗ FAILED: Unable to extract username from token")
+            print(f"[LOGIN]  FAILED: Unable to extract username from token")
             return JSONResponse(
                 content={"error": f"Unable to Fetch User from Auth Token"},
                 status_code=400
             )
         
-        print(f"[LOGIN]  ✓ Username extracted: {userName}")
+        print(f"[LOGIN]   Username extracted: {userName}")
 
         print(f"[LOGIN]  Step 2: Looking up user (ssoId={userName}, tenantId={x_tenant_id})...")
         
         user = await userService.getOrCreateUser(userName, x_tenant_id)
-        print(f"[LOGIN]  ✓ User resolved: ID={user.id}, Name={user.name.firstName} {user.name.lastName}")
+        print(f"[LOGIN]   User resolved: ID={user.id}, Name={user.name.firstName} {user.name.lastName}")
 
         print(f"[LOGIN]  Step 3: Creating JWT token...")
         print(f"[LOGIN] =========================================================================")
@@ -95,9 +98,6 @@ async def login(
         print(f"[LOGIN]  Step 4: Recording login activity...")
         print(f"[LOGIN] =========================================================================")
 
-        print(f"DEBUG: Received authorization token: {auth_header}")
-        print(f"DEBUG: Received x_tenant_id parameter: {x_tenant_id}")
-        print(f"DEBUG: All headers: {headers_dict}")
         
         await userService.saveLoginDateTime(_ssoId, x_tenant_id)
 
@@ -105,9 +105,9 @@ async def login(
         avgLoginSession = await userService.getUserAvgLoginSession(userID)
         await userService.saveLoginDetail(x_tenant_id, _ssoId, avgLoginCount, avgLoginSession)
         
-        print(f"[LOGIN]  ✓ Login activity recorded")
+        print(f"[LOGIN]   Login activity recorded")
 
-        print(f"[LOGIN]  ✓✓✓ LOGIN SUCCESSFUL ✓✓✓ (202 Accepted)")
+        print(f"[LOGIN]   LOGIN SUCCESSFUL  (202 Accepted)")
 
         return JSONResponse(content=authResponse.dict(), status_code=202)
 
