@@ -1396,6 +1396,20 @@ async def getUserListById(
         if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
             user_dict["sites"] = user_dict["sites"]["sites"]
         
+        # Remove contracts field if it's null
+        if "contracts" in user_dict and user_dict["contracts"] is None:
+            del user_dict["contracts"]
+        
+        # Convert avgLoginSession to object structure with milliseconds
+        if "avgLoginSession" in user_dict:
+            # if isinstance(user_dict["avgLoginSession"], (int, float)):
+            #     user_dict["avgLoginSession"] = {"milliseconds": user_dict["avgLoginSession"]}
+            # elif isinstance(user_dict["avgLoginSession"], dict) and "milliseconds" not in user_dict["avgLoginSession"]:
+            #     # If it's a dict but doesn't have milliseconds key, wrap it
+            #     user_dict["avgLoginSession"] = {"milliseconds": user_dict["avgLoginSession"].get("millis", 0)}/
+            user_dict["avgLoginSession"] = {"milliseconds": user_dict["avgLoginSession"] if isinstance(user_dict["avgLoginSession"], (int, float)) else 0}
+
+        
         # Convert null id to empty string in title object
         if "title" in user_dict and isinstance(user_dict["title"], dict):
             if "id" in user_dict["title"] and user_dict["title"]["id"] is None:
