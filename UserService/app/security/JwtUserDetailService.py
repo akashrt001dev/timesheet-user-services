@@ -295,9 +295,14 @@ class JwtUserDetailService:
         try:
             user = await self.userRepository.findById(userId)
             if user:
-                user.loginAttempts = 0
-                user.lockoutTime = 0
-                await self.userRepository.save(user)
+                # Use updateById for partial update to avoid corrupting other fields
+                await self.userRepository.updateById(
+                    userId,
+                    {
+                        "loginAttempts": 0,
+                        "lockoutTime": 0
+                    }
+                )
                 
         except Exception as e:
             self.LOG.error(f"Error resetting login attempts: {str(e)}")
@@ -329,14 +334,22 @@ class JwtUserDetailService:
                 return
                 
             attempts = (user.loginAttempts or 0) + 1
-            user.loginAttempts = attempts
-            await self.userRepository.save(user)
+            # Use updateById for partial update to avoid corrupting other fields
+            await self.userRepository.updateById(
+                userId,
+                {"loginAttempts": attempts}
+            )
             
             if attempts >= self.MAX_ATTEMPTS:
                 currentTime = int(datetime.now().timestamp() * 1000)
-                user.lockoutTime = currentTime + self.LOCKOUT_TIME
-                user.loginAttempts = self.MAX_ATTEMPTS + 1
-                await self.userRepository.save(user)
+                # Use updateById for partial update to avoid corrupting other fields
+                await self.userRepository.updateById(
+                    userId,
+                    {
+                        "lockoutTime": currentTime + self.LOCKOUT_TIME,
+                        "loginAttempts": self.MAX_ATTEMPTS + 1
+                    }
+                )
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
                     detail="Account Locked"
