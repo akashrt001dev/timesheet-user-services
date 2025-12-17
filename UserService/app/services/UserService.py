@@ -435,12 +435,61 @@ class UserService:
     async def getOrCreateUser(self, userName: str, tenantId: str) -> User:
         """
         Get or create user based on username and tenant.
-        """
-        isUserAvailableInTenant = await self.checkUserInTenant(userName, tenantId)
-        user = None
         
-        if not isUserAvailableInTenant:
-            # Create a Name object with the userName (using as both firstName and lastName)
+        Lookup Strategy (in order):
+        1. Try to find by email + tenant (case-insensitive) - PRIMARY because users may be created with email, ssoId can be null
+        2. Try to find by ssoId + tenant (case-insensitive) - when ssoId is already set
+        3. Create new user if not found in any tier
+        
+        This ensures existing users are recognized regardless of whether they have ssoId set.
+        """
+        try:
+            print(f"[GETORCREATE] Called with userName={userName}, tenantId={tenantId}")
+            
+            tenant = Tenant(tenantId=tenantId)
+            
+            # TIER 1: PRIMARY - Try to find by email (most reliable since users created with email)
+            print(f"[GETORCREATE] [TIER1] Searching by email: {userName}")
+            try:
+                email_obj = Email(officialEmail=userName)
+                existing_user = await self.userRepository.findByEmailAndTenant(email_obj, tenant)
+                if existing_user:
+                    print(f"[GETORCREATE] [TIER1] ✓ FOUND by email: ID={existing_user.id}, "
+                                  f"userType={existing_user.userType}, ssoId={existing_user.ssoId.id if existing_user.ssoId else 'None'}")
+                    
+                    # Update ssoId if null or mismatch
+                    if not existing_user.ssoId or not existing_user.ssoId.id or existing_user.ssoId.id != userName:
+                        print(f"[GETORCREATE] [TIER1] Updating ssoId: {existing_user.ssoId.id if existing_user.ssoId else 'None'} → {userName}")
+                        existing_user.ssoId = SsoId(id=userName)
+                        await self.userRepository.save(existing_user)
+                    
+                    return existing_user
+            except Exception as e:
+                print(f"[GETORCREATE] [TIER1] Email search failed: {str(e)}")
+            
+            # TIER 2: Try to find by ssoId + tenant (case-insensitive regex search)
+            print(f"[GETORCREATE] [TIER2] Searching by ssoId: {userName}")
+            try:
+                existing_user = await self.userRepository.findBySsoIdAndTenant(userName, tenant)
+                if existing_user:
+                    print(f"[GETORCREATE] [TIER2] ✓ FOUND by ssoId: ID={existing_user.id}, "
+                                  f"userType={existing_user.userType}")
+                    return existing_user
+            except Exception as e:
+                print(f"[GETORCREATE] [TIER2] SsoId+Tenant search failed: {str(e)}")
+            
+            # TIER 3: Fallback - Try case-insensitive ssoId search (any tenant)
+            print(f"[GETORCREATE] [TIER3] Fallback ssoId search (any tenant): {userName}")
+            try:
+                existing_user = await self.userRepository.findBySsoId(userName)
+                if existing_user and existing_user.tenant.tenantId == tenantId:
+                    print(f"[GETORCREATE] [TIER3] ✓ FOUND by ssoId (fallback): ID={existing_user.id}")
+                    return existing_user
+            except Exception as e:
+                print(f"[GETORCREATE] [TIER3] Fallback search failed: {str(e)}")
+            
+            # NOT FOUND - Create new user
+            print(f"[GETORCREATE] [CREATE] User not found in any tier, creating new user...")
             from ..models.valueobjects.Name import Name
             
             user = User(
@@ -454,11 +503,12 @@ class UserService:
             )
             
             user = await self.userRepository.save(user)
-        else:
-            tenant = Tenant(tenantId=tenantId)
-            user = await self.userRepository.findBySsoIdAndTenant(userName, tenant)
-        
-        return user
+            print(f"[GETORCREATE] [CREATE] ✓ New user created: ID={user.id}, ssoId={user.ssoId.id}")
+            return user
+            
+        except Exception as e:
+            print(f"[GETORCREATE] ERROR: {str(e)}")
+            raise
 
     async def loadUserByEmailId(self, ssoId: str) -> User:
         """
@@ -564,9 +614,15 @@ class UserService:
         """
         Check if user exists in tenant.
         """
-        tenant = Tenant(tenantId=tenantId)
-        userDoc = await self.userRepository.findBySsoIdAndTenant(ssoId, tenant)
-        return userDoc is not None
+        try:
+            tenant = Tenant(tenantId=tenantId)
+            userDoc = await self.userRepository.findBySsoIdAndTenant(ssoId, tenant)
+            exists = userDoc is not None
+            print(f"checkUserInTenant: ssoId={ssoId}, tenantId={tenantId}, exists={exists}")
+            return exists
+        except Exception as e:
+            print(f"Error checking user in tenant: {str(e)}")
+            return False
 
     async def getUserById(self, id: str, tenantId: str) -> Optional[User]:
         """
@@ -2514,7 +2570,7 @@ class UserService:
         except HTTPException:
             raise
         except Exception as e:
-            self.LOG.error(f"Error getting user access scope: {str(e)}")
+            print(f"Error getting user access scope: {str(e)}")
             raise HTTPException(status_code=400, detail=f"Failed to get access scope: {str(e)}")
                 # Add more paths as needed
         

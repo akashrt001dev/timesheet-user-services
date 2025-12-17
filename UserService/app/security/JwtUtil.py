@@ -77,7 +77,12 @@ class JwtUtil:
             claims["title"] = user.title.title
         
         if user.passwordCreatedDate:
-            days_since_creation = (datetime.now(timezone.utc) - user.passwordCreatedDate).days
+            # Ensure passwordCreatedDate is timezone-aware (UTC) for comparison
+            pwd_date = user.passwordCreatedDate
+            if pwd_date.tzinfo is None:
+                # If naive, assume UTC
+                pwd_date = pwd_date.replace(tzinfo=timezone.utc)
+            days_since_creation = (datetime.now(timezone.utc) - pwd_date).days
             claims["passwordExpiresIn(Days)"] = days_since_creation
         else:
             claims["passwordExpiresIn(Days)"] = 0
