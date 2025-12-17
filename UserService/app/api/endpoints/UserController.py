@@ -11,6 +11,7 @@ from app.models.DTO.ChangePasswordDTO import ChangePasswordDTO
 from app.models.DTO.ProfilePictureDTO import ProfilePictureDTO
 from app.models.DTO.UpdatePasswordDTO import UpdatePasswordDTO
 from app.models.DTO.UserSsoIdDTO import UserSsoIdDTO
+from app.models.DTO.AccessScopeResponseDTO import AccessScopeResponseDTO
 from app.models.aggregates.root.User import User
 from app.models.valueobjects.BlockOrDeactivateAction import BlockOrDeactivateAction
 from app.models.valueobjects.Email import Email
@@ -893,7 +894,7 @@ async def getUserAccessScope(
     X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     controller: UserController = Depends(get_user_controller)
-):
+) -> AccessScopeResponseDTO:
     """
     Equivalent to Java: @GetMapping("/{userId}/accessScope")
     public ResponseEntity<?> getUserAccessScope(@RequestHeader(value = "X-Authorization") String authorization, @RequestHeader(value = "X-tenantID") String tenantId, @PathVariable("userId") String userId)
@@ -914,7 +915,37 @@ async def getUserAccessScope(
         - Checks for surrogate access if applicable
     
     Returns:
-        Access scope object with user's permissions, sites, departments, contracts
+        AccessScopeResponseDTO with:
+        - roles: List of all roles assigned to the user
+        - accessScopes: List of access scopes with regions, sites, and departments
+    
+    Example Response:
+        {
+            "roles": [
+                {
+                    "id": "62d8e1a2a18d662326f0ce07",
+                    "roleName": "Contract Manager",
+                    "roleDescription": "Contract Manager",
+                    "roleType": "SYSTEM",
+                    "rolePerformerTypes": ["CONTRACT_MANAGER"]
+                }
+            ],
+            "accessScopes": [
+                {
+                    "role": { ... },
+                    "allRegionsApplicable": false,
+                    "regions": [
+                        {
+                            "id": "68d4cf14e793b580b9df70a5",
+                            "regionName": { "regionName": "Smmc" },
+                            "roles": [ ... ],
+                            "allSitesApplicable": false,
+                            "sites": [ ... ]
+                        }
+                    ]
+                }
+            ]
+        }
     
     Raises:
         404: User not found in tenant
@@ -922,7 +953,62 @@ async def getUserAccessScope(
     """
     try:
         result = await controller.userService.getUserAccessScope(X_tenantID, userId)
-        return {"status": "success", "data": result}
+        
+        # Transform the result to match AccessScopeResponseDTO structure
+        if isinstance(result, dict):
+            # Convert roles array - service now returns full role objects
+            roles = []
+            if "roles" in result:
+                for role in result["roles"]:
+                    if isinstance(role, dict):
+                        # Ensure required fields exist
+                        role_dict = {
+                            "id": role.get("id"),
+                            "roleName": role.get("roleName"),
+                            "roleDescription": role.get("roleDescription"),
+                            "roleType": role.get("roleType", "SYSTEM"),
+                            "rolePerformerTypes": role.get("rolePerformerTypes", [])
+                        }
+                        roles.append(role_dict)
+                    elif isinstance(role, str):
+                        # Fallback for string role names (backward compatibility)
+                        roles.append({
+                            "id": None,
+                            "roleName": role,
+                            "roleDescription": role,
+                            "roleType": "SYSTEM",
+                            "rolePerformerTypes": []
+                        })
+                    else:
+                        # It's a Role object - convert to dict
+                        if hasattr(role, 'model_dump'):
+                            role_dict = role.model_dump()
+                        elif hasattr(role, 'dict'):
+                            role_dict = role.dict()
+                        else:
+                            role_dict = role.__dict__ if hasattr(role, '__dict__') else {}
+                        
+                        # Ensure required fields
+                        roles.append({
+                            "id": role_dict.get("id"),
+                            "roleName": role_dict.get("roleName"),
+                            "roleDescription": role_dict.get("roleDescription"),
+                            "roleType": role_dict.get("roleType", "SYSTEM"),
+                            "rolePerformerTypes": role_dict.get("rolePerformerTypes", [])
+                        })
+            
+            # Ensure accessScopes exists
+            access_scopes = result.get("accessScopes", [])
+            
+            # Build the proper response
+            response_data = {
+                "roles": roles,
+                "accessScopes": access_scopes
+            }
+            
+            return AccessScopeResponseDTO(**response_data)
+        
+        return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

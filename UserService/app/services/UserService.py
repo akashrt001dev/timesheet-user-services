@@ -2556,10 +2556,32 @@ class UserService:
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
+            # Convert roles to dicts with all fields preserved
+            roles_list = []
+            if user.roles:
+                for role in user.roles:
+                    # If role is a Role object, convert to dict preserving all fields
+                    if hasattr(role, 'model_dump'):
+                        role_dict = role.model_dump(by_alias=False)
+                    elif hasattr(role, 'dict'):
+                        role_dict = role.dict()
+                    else:
+                        role_dict = role.__dict__ if hasattr(role, '__dict__') else {"roleName": str(role)}
+                    
+                    # Ensure id is present (handle _id from MongoDB)
+                    if "id" not in role_dict and "_id" in role_dict:
+                        role_dict["id"] = role_dict.pop("_id")
+                    
+                    # Ensure rolePerformerTypes exists
+                    if "rolePerformerTypes" not in role_dict:
+                        role_dict["rolePerformerTypes"] = []
+                    
+                    roles_list.append(role_dict)
+            
             # Build access scope
             accessScope = {
                 "userId": userId,
-                "roles": [role.roleName for role in (user.roles or [])],
+                "roles": roles_list,
                 "sites": [],
                 "departments": [],
                 "contracts": [],
