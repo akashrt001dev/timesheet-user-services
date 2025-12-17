@@ -1401,6 +1401,13 @@ async def getUserListById(
             if "id" in user_dict["title"] and user_dict["title"]["id"] is None:
                 user_dict["title"]["id"] = ""
         
+        # Ensure suffix object structure in name dict
+        if "name" in user_dict and isinstance(user_dict["name"], dict):
+            if "suffix" not in user_dict["name"]:
+                user_dict["name"]["suffix"] = {"id": None, "suffix": None}
+            elif not isinstance(user_dict["name"]["suffix"], dict):
+                user_dict["name"]["suffix"] = {"id": None, "suffix": None}
+        
         # Get access scope for the user
         try:
             access_scope_result = await controller.userService.getUserAccessScope(X_tenantID, userId)

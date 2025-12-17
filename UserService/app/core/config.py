@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     JWT_REFRESH_EXPIRATION_SECONDS: int = 86400  # 24 hours
     
     # External service URLs
-    ENTITY_CLIENT_URL: str = "http://localhost:8081"
-    CONTRACT_CLIENT_URL: str = "http://localhost:8082"
-    TIMESHEET_CLIENT_URL: str = "http://localhost:8083"
+    ENTITY_CLIENT_URL: str = "http://localhost:8003"
+    CONTRACT_CLIENT_URL: str = "http://localhost:8002"
+    TIMESHEET_CLIENT_URL: str = "http://localhost:8004"
     
     # RabbitMQ Configuration
     RABBITMQ_HOST: str = "localhost"
