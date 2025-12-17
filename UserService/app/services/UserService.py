@@ -456,13 +456,7 @@ class UserService:
                 if existing_user:
                     print(f"[GETORCREATE] [TIER1] ✓ FOUND by email: ID={existing_user.id}, "
                                   f"userType={existing_user.userType}, ssoId={existing_user.ssoId.id if existing_user.ssoId else 'None'}")
-                    
-                    # Update ssoId if null or mismatch
-                    if not existing_user.ssoId or not existing_user.ssoId.id or existing_user.ssoId.id != userName:
-                        print(f"[GETORCREATE] [TIER1] Updating ssoId: {existing_user.ssoId.id if existing_user.ssoId else 'None'} → {userName}")
-                        existing_user.ssoId = SsoId(id=userName)
-                        await self.userRepository.save(existing_user)
-                    
+                    # Return existing user as-is, do not modify
                     return existing_user
             except Exception as e:
                 print(f"[GETORCREATE] [TIER1] Email search failed: {str(e)}")
