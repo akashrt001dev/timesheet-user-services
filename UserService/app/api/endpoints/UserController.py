@@ -956,7 +956,7 @@ async def getUserAccessScope(
         
         # Transform the result to match AccessScopeResponseDTO structure
         if isinstance(result, dict):
-            # Convert roles array - service now returns full role objects
+            # Convert roles array
             roles = []
             if "roles" in result:
                 for role in result["roles"]:
@@ -997,7 +997,7 @@ async def getUserAccessScope(
                             "rolePerformerTypes": role_dict.get("rolePerformerTypes", [])
                         })
             
-            # Ensure accessScopes exists
+            # Get accessScopes from result - service now provides fully formed accessScopes
             access_scopes = result.get("accessScopes", [])
             
             # Build the proper response
@@ -1341,13 +1341,13 @@ async def getUserListById(
     X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     controller: UserController = Depends(get_user_controller)
-) -> User:
+):
     """
     Equivalent to Java: @GetMapping("/{userId}")
     public User getUserListById(@RequestHeader(value = "X-tenantID") String tenantId, @PathVariable(name = "userId") String userId)
     
     Retrieves a single user by their ID within a specific tenant.
-    Returns complete user profile including roles, sites, contracts, and metadata.
+    Returns complete user profile including roles, sites, contracts, metadata, and access scope.
     This is the primary endpoint for fetching individual user details.
     
     IMPORTANT: This endpoint uses a dynamic path parameter and must be defined LAST
@@ -1359,11 +1359,32 @@ async def getUserListById(
     Business Logic:
         - Validates user exists in specified tenant
         - Retrieves complete user record with all fields
+        - Retrieves user's access scope (roles, regions, sites, departments)
         - Serializes with Pydantic aliasing (camelCase for API)
-        - Returns full user profile
+        - Returns full user profile with access scope
     
     Returns:
-        User object with complete profile data
+        User object with complete profile data including:
+        - All user fields (firstName, lastName, email, etc.)
+        - roles: List of assigned roles
+        - sites: List of assigned sites
+        - contracts: List of assigned contracts
+        - accessScope: Hierarchical access structure with regions, sites, departments, and role-based permissions
+    
+    Example Response:
+        {
+            "id": "6424dea81a6c0d4b84d543a9",
+            "firstName": "John",
+            "lastName": "Doe",
+            "email": "john@example.com",
+            "roles": [...],
+            "sites": [...],
+            "accessScope": {
+                "roles": [...],
+                "allRegionsApplicable": false,
+                "regions": [...]
+            }
+        }
     
     Raises:
         404: User not found in tenant
@@ -1371,7 +1392,68 @@ async def getUserListById(
     """
     try:
         user = await controller.userService.getUserListById(X_tenantID, userId)
-        return user.model_dump(by_alias=True, exclude_none=False)
+        user_dict = user.model_dump(by_alias=True, exclude_none=False)
+        
+        # Get access scope for the user
+        try:
+            access_scope_result = await controller.userService.getUserAccessScope(X_tenantID, userId)
+            
+            # Transform accessScope to match the response structure
+            if isinstance(access_scope_result, dict):
+                # Convert roles array
+                roles = []
+                if "roles" in access_scope_result:
+                    for role in access_scope_result["roles"]:
+                        if isinstance(role, dict):
+                            role_dict = {
+                                "id": role.get("id"),
+                                "roleName": role.get("roleName"),
+                                "roleDescription": role.get("roleDescription"),
+                                "roleType": role.get("roleType", "SYSTEM"),
+                                "rolePerformerTypes": role.get("rolePerformerTypes", [])
+                            }
+                            roles.append(role_dict)
+                        elif isinstance(role, str):
+                            roles.append({
+                                "id": None,
+                                "roleName": role,
+                                "roleDescription": role,
+                                "roleType": "SYSTEM",
+                                "rolePerformerTypes": []
+                            })
+                        else:
+                            if hasattr(role, 'model_dump'):
+                                role_dict = role.model_dump()
+                            elif hasattr(role, 'dict'):
+                                role_dict = role.dict()
+                            else:
+                                role_dict = role.__dict__ if hasattr(role, '__dict__') else {}
+                            
+                            roles.append({
+                                "id": role_dict.get("id"),
+                                "roleName": role_dict.get("roleName"),
+                                "roleDescription": role_dict.get("roleDescription"),
+                                "roleType": role_dict.get("roleType", "SYSTEM"),
+                                "rolePerformerTypes": role_dict.get("rolePerformerTypes", [])
+                            })
+                
+                # Build accessScope structure
+                access_scopes = access_scope_result.get("accessScopes", [])
+                user_dict["accessScope"] = {
+                    "roles": roles,
+                    "allRegionsApplicable": False,
+                    "regions": access_scopes if isinstance(access_scopes, list) else []
+                }
+        except Exception as e:
+            # If access scope retrieval fails, provide empty structure
+            print(f"Warning: Could not retrieve access scope for user {userId}: {str(e)}")
+            user_dict["accessScope"] = {
+                "roles": [],
+                "allRegionsApplicable": False,
+                "regions": []
+            }
+        
+        return user_dict
     except HTTPException as he:
         raise he
     except Exception as e:

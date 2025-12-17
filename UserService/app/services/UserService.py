@@ -2549,6 +2549,7 @@ class UserService:
         """
         Get user's access scope (permissions, site/department access, contracts, etc.)
         Equivalent to Java: getUserAccessScope(String tenantId, String userId)
+        Returns comprehensive access structure with roles, regions, sites, and departments
         """
         try:
             # Get user
@@ -2578,25 +2579,116 @@ class UserService:
                     
                     roles_list.append(role_dict)
             
-            # Build access scope
-            accessScope = {
+            # Build accessScopes with regions and sites structure
+            access_scopes = []
+            if user.roles:
+                for role in roles_list:
+                    # Build regions structure for this role
+                    regions = []
+                    
+                    if user.sites and user.sites.sites:
+                        # Group sites by region
+                        regions_dict = {}
+                        
+                        for site in user.sites.sites:
+                            # Get region info if available
+                            region_id = "default_region"
+                            region_name = "Default Region"
+                            
+                            if hasattr(site, 'region') and site.region:
+                                if hasattr(site.region, 'id'):
+                                    region_id = site.region.id
+                                if hasattr(site.region, 'regionName'):
+                                    if hasattr(site.region.regionName, 'regionName'):
+                                        region_name = site.region.regionName.regionName
+                                    else:
+                                        region_name = str(site.region.regionName)
+                            
+                            # Initialize region if not exists
+                            if region_id not in regions_dict:
+                                regions_dict[region_id] = {
+                                    "id": region_id,
+                                    "regionName": {
+                                        "regionName": region_name
+                                    },
+                                    "roles": [],
+                                    "allSitesApplicable": False,
+                                    "sites": []
+                                }
+                            
+                            # Extract site name string - handle both string and SiteName object
+                            site_name_str = ""
+                            if hasattr(site, 'siteName'):
+                                if hasattr(site.siteName, 'siteName'):
+                                    # It's a SiteName object with siteName attribute
+                                    site_name_str = site.siteName.siteName
+                                else:
+                                    # It's a string already
+                                    site_name_str = str(site.siteName)
+                            
+                            # Build site info
+                            site_dict = {
+                                "id": site.id if hasattr(site, 'id') else "",
+                                "siteName": {
+                                    "siteName": site_name_str
+                                },
+                                "departmentList": {
+                                    "departments": []
+                                },
+                                "siteResponsibility": {},
+                                "region": {
+                                    "id": region_id,
+                                    "regionName": {
+                                        "regionName": region_name
+                                    }
+                                },
+                                "roles": [role]  # Include the role for this site
+                            }
+                            
+                            # Add site responsibility if available
+                            if hasattr(site, 'siteResponsibility') and site.siteResponsibility:
+                                site_dict["siteResponsibility"] = {
+                                    "title": site.siteResponsibility.title if hasattr(site.siteResponsibility, 'title') else "",
+                                    "id": site.siteResponsibility.id if hasattr(site.siteResponsibility, 'id') else ""
+                                }
+                            
+                            # Add departments if available
+                            if hasattr(site, 'departments') and site.departments:
+                                site_dict["departmentList"]["departments"] = site.departments
+                            
+                            regions_dict[region_id]["sites"].append(site_dict)
+                        
+                        # Convert regions_dict to list
+                        regions = list(regions_dict.values())
+                    
+                    # Create access scope entry for this role
+                    access_scope_entry = {
+                        "role": role,
+                        "allRegionsApplicable": False,
+                        "regions": regions
+                    }
+                    access_scopes.append(access_scope_entry)
+            
+            # Build final response
+            response = {
                 "userId": userId,
                 "roles": roles_list,
+                "accessScopes": access_scopes,
                 "sites": [],
                 "departments": [],
                 "contracts": [],
                 "accessLevel": user.accessLevel.value if user.accessLevel else "USER"
             }
             
-            # Add site access
+            # Add simple site access list
             if user.sites and user.sites.sites:
                 for site in user.sites.sites:
                     site_info = {
                         "siteId": site.id,
                         "siteName": site.siteName if hasattr(site, 'siteName') else "",
-                        "responsibility": site.siteResponsibility.dict() if site.siteResponsibility else {}
+                        "responsibility": site.siteResponsibility.dict() if hasattr(site, 'siteResponsibility') and site.siteResponsibility else {}
                     }
-                    accessScope["sites"].append(site_info)
+                    response["sites"].append(site_info)
             
             # Add contract access
             if user.contracts:
@@ -2605,9 +2697,9 @@ class UserService:
                         "contractId": contract.id if hasattr(contract, 'id') else "",
                         "contractName": contract.contractName if hasattr(contract, 'contractName') else ""
                     }
-                    accessScope["contracts"].append(contract_info)
+                    response["contracts"].append(contract_info)
             
-            return accessScope
+            return response
         except HTTPException:
             raise
         except Exception as e:
