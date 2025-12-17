@@ -32,23 +32,14 @@ class MongoRepository(ABC, Generic[T]):
     
     def _document_to_model(self, doc: Dict[str, Any]) -> T:
         """Convert a MongoDB document to a model instance.
-        Handles MongoDB _id fields (both top-level and nested in value objects like ssoId).
+        Handles MongoDB _id fields (both top-level and nested in value objects like ssoId, Title, etc.).
+        Converts ObjectId instances to strings for Pydantic compatibility.
         """
         if doc is None:
             return None
         
-        # Handle MongoDB _id field conversion at top level
-        if "_id" in doc:
-            doc["id"] = str(doc["_id"])
-            del doc["_id"]
-        
-        # Handle nested _id fields in value objects (e.g., ssoId._id -> ssoId.id)
-        # This ensures MongoDB's nested structure { ssoId: { _id: "value" } } is properly converted
-        for key, value in doc.items():
-            if isinstance(value, dict) and "_id" in value and "id" not in value:
-                # Copy _id to id for nested objects
-                value["id"] = value["_id"]
-                # Keep _id for backward compatibility if needed, but Pydantic will use id
+        # Recursively convert ObjectIds to strings and handle nested _id fields
+        doc = self._convert_objectids_and_ids(doc)
         
         model_class = self.get_model_class()
         try:
@@ -82,6 +73,44 @@ class MongoRepository(ABC, Generic[T]):
                 print(f"Still failed after filtering: {inner_e}")
                 # Return empty model as last resort
                 return model_class.model_validate({}) if hasattr(model_class, 'model_validate') else model_class()
+    
+    def _convert_objectids_and_ids(self, obj: Any) -> Any:
+        """Recursively convert ObjectId instances to strings and handle nested _id fields.
+        
+        MongoDB uses ObjectId for database IDs and stores them as { _id: ObjectId(...) }.
+        Pydantic expects string values. This method:
+        1. Converts all ObjectId instances to strings
+        2. Converts nested { _id: value } to { id: value } for value objects
+        """
+        if obj is None:
+            return None
+        
+        # Handle ObjectId
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        
+        # Handle dict
+        if isinstance(obj, dict):
+            converted = {}
+            for key, value in obj.items():
+                # Skip _class field from MongoDB Spring Data
+                if key == '_class':
+                    continue
+                # Recursively convert nested values
+                converted[key] = self._convert_objectids_and_ids(value)
+            
+            # Handle top-level _id -> id conversion
+            if "_id" in converted and "id" not in converted:
+                converted["id"] = converted.pop("_id")
+            
+            return converted
+        
+        # Handle list
+        if isinstance(obj, list):
+            return [self._convert_objectids_and_ids(item) for item in obj]
+        
+        # Return as-is for primitives (str, int, float, bool, etc.)
+        return obj
     
     def _model_to_document(self, model: T) -> Dict[str, Any]:
         """Convert a model instance to a MongoDB document.
