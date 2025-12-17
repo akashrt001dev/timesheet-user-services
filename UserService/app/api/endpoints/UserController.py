@@ -891,7 +891,6 @@ async def blockOrDeactivateUser(
 @router.get("/{userId}/accessScope")
 async def getUserAccessScope(
     userId: str = Path(alias="userId"),
-    X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     controller: UserController = Depends(get_user_controller)
 ) -> AccessScopeResponseDTO:
@@ -1338,7 +1337,6 @@ async def detachContractsFromUser(
 @router.get("/{userId}")
 async def getUserListById(
     userId: str = Path(alias="userId"),
-    X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     controller: UserController = Depends(get_user_controller)
 ):
