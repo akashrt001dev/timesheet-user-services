@@ -143,7 +143,7 @@ async def registerNewUserList(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.get("/")
+@router.get("")
 async def getUserList(
     X_tenantID: str = Header(alias="X-tenantID"),
     firstName: Optional[str] = Query(None),
