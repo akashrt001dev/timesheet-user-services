@@ -2339,30 +2339,43 @@ class UserService:
             user = await self.getUserById(userId, tenantId)
             
             if user is not None:
+                # Build update dict with only the fields that need to change
+                update_dict = {}
+                
                 if option == BlockOrDeactivateAction.BLOCK:
-                    user.isBlocked = True
-                    user.userBlockedOrDeactivatedDate = datetime.now()
+                    update_dict["isBlocked"] = True
+                    update_dict["userBlockedOrDeactivatedDate"] = datetime.now()
+                    
                 elif option == BlockOrDeactivateAction.DEACTIVATE:
-                    user.isActivated = False
-                    user.userBlockedOrDeactivatedDate = datetime.now()
+                    update_dict["isActivated"] = False
+                    update_dict["userBlockedOrDeactivatedDate"] = datetime.now()
                     
                     if authorization is not None:
-                        userName = await self.extractUserNameFromOauthJwtToken(authorization, {})
-                        actionBy = ActionBy(actionByUserId=userName, actionDateTime=datetime.now())
-                        user.deactivatedBy = actionBy
+                        try:
+                            userName = await self.extractUserNameFromOauthJwtToken(authorization, {})
+                            update_dict["deactivatedBy"] = {
+                                "actionByUserId": userName,
+                                "actionDateTime": datetime.now()
+                            }
+                        except Exception:
+                            pass
                         
                 elif option == BlockOrDeactivateAction.UNBLOCK:
-                    user.isBlocked = False
-                    user.userBlockedOrDeactivatedDate = None
+                    update_dict["isBlocked"] = False
+                    update_dict["userBlockedOrDeactivatedDate"] = None
+                    
                 elif option == BlockOrDeactivateAction.REACTIVATE:
-                    user.isActivated = True
-                    user.isInvited = False
-                    user.userBlockedOrDeactivatedDate = None
+                    update_dict["isActivated"] = True
+                    update_dict["isInvited"] = False
+                    update_dict["userBlockedOrDeactivatedDate"] = None
+                    
                 elif option == BlockOrDeactivateAction.DELETE:
-                    user.isDeleted = True
+                    update_dict["isDeleted"] = True
                 
-                # Persist changes
-                await self.userRepository.save(user)
+                # Use updateById for direct update instead of save
+                # This ensures we update the existing document, not create a new one
+                await self.userRepository.updateById(userId, update_dict)
+                
                 # Return Java-like simple string response
                 if option == BlockOrDeactivateAction.BLOCK:
                     return "User blocked successfully"
