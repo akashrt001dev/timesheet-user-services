@@ -390,7 +390,6 @@ async def setUserPassword(
 
 @router.get("/metadata")
 async def getUsersMetadata(
-    X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     siteId: Optional[str] = Query(None),
     startDate: Optional[str] = Query(None),
@@ -441,7 +440,7 @@ async def getUsersMetadata(
             endDate = end_date_obj.strftime("%Y-%m-%d")
 
         result = await controller.userService.getUsersMetadata(X_tenantID, siteId, startDate, endDate)
-        return {"status": "success", "data": result}
+        return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
