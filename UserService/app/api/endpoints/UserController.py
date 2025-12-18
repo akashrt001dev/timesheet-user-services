@@ -414,7 +414,6 @@ async def getUsersMetadata(
 
 @router.get("/registeredUserMetadata")
 async def getRegisteredUsersMetadata(
-    X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     siteId: Optional[str] = Query(None),
     controller: UserController = Depends(get_user_controller)
@@ -435,7 +434,7 @@ async def getRegisteredUsersMetadata(
     """
     try:
         result = await controller.userService.getRegisteredUsersMetadata(X_tenantID, siteId)
-        return {"status": "success", "data": result}
+        return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
