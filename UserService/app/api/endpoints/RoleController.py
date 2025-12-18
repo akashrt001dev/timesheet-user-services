@@ -27,7 +27,7 @@ async def createNewRole(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.get("/")
+@router.get("")
 async def getRoles(
     # X_Authorization: str = Header(alias="X-Authorization"),
     roleType: Optional[List[str]] = Query(None, alias="roleType"),
