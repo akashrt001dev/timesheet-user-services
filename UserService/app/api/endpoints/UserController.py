@@ -145,7 +145,6 @@ async def registerNewUserList(
 
 @router.get("/")
 async def getUserList(
-    X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     firstName: Optional[str] = Query(None),
     lastName: Optional[str] = Query(None),
