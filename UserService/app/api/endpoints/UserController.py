@@ -191,6 +191,39 @@ async def getUserList(
             blocked, invited, partnerId, sites, titles, sitedepartments,
             contractIdOnFile, userTypes, searchText, offset, limit
         )
+        
+        # Transform users in the result to match the single user endpoint format
+        if result and hasattr(result, 'users') and result.users:
+            transformed_users = []
+            for user in result.users:
+                # Use exclude_none=True to avoid None fields that can cause validation issues
+                user_dict = user.model_dump(by_alias=True, exclude_none=True) if hasattr(user, 'model_dump') else user
+                
+                # Flatten sites structure
+                if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
+                    user_dict["sites"] = user_dict["sites"]["sites"]
+                
+                # Convert avgLoginSession to object structure
+                if "avgLoginSession" in user_dict:
+                    user_dict["avgLoginSession"] = {"milliseconds": user_dict["avgLoginSession"] if isinstance(user_dict["avgLoginSession"], (int, float)) else 0}
+                
+                # Convert null id to empty string in title
+                if "title" in user_dict and isinstance(user_dict["title"], dict):
+                    if "id" in user_dict["title"] and user_dict["title"]["id"] is None:
+                        user_dict["title"]["id"] = ""
+                
+                # Ensure suffix object structure
+                if "name" in user_dict and isinstance(user_dict["name"], dict):
+                    if "suffix" not in user_dict["name"]:
+                        user_dict["name"]["suffix"] = {"id": None, "suffix": None}
+                    elif not isinstance(user_dict["name"]["suffix"], dict):
+                        user_dict["name"]["suffix"] = {"id": None, "suffix": None}
+                
+                transformed_users.append(user_dict)
+            
+            # Replace users list with transformed dicts
+            result.users = transformed_users
+        
         return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
