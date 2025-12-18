@@ -64,6 +64,7 @@ class QueryProcessor:
         logger.info(f"QueryProcessor: Building query for tenant: {tenant.tenantId}")
         logger.info(f"QueryProcessor: Using collection: {self.user_collection.name}")
 
+        # Early return for contractId filter
         if contractId:
             query["contracts._id"] = contractId
             dummy_user = await self.userRepository.getUsersByUserIdAndContractId(
@@ -72,94 +73,13 @@ class QueryProcessor:
             if dummy_user:
                 return UserListDTO(users=[dummy_user], numberOfElements=1)
 
+        # Build basic filters
         self.userNameQuery(firstName, lastName, query)
 
         if activated is not None:
             query["isActivated"] = (activated.lower() == 'true')
         
-        all_user_types = []
-        if userType:
-            all_user_types.append(userType)
-        if userTypes:
-            all_user_types.extend(userTypes)
-        if all_user_types:
-            query["userType"] = {"$in": all_user_types}
-
-        if blocked is not None:
-            query["isBlocked"] = (blocked.lower() == 'true')
-
-        if invited is not None:
-            query["isInvited"] = (invited.lower() == 'true')
-
-        if partnerId:
-            query["partnerId"] = partnerId
-
-        if sites:
-            query["sites.sites._id"] = {"$in": sites}
-
-        if titles:
-            query["title.titleName"] = {"$in": titles}
-
-        if sitedepartments:
-            query["sites.sites.siteResponsibility._id"] = {"$in": sitedepartments}
-
-        if searchText:
-            search_regex = {"$regex": searchText, "$options": "i"}
-            query["$or"] = query.get("$or", []) + [
-                {"name.firstName": search_regex},
-                {"name.lastName": search_regex},
-                {"ssoId._id": search_regex},
-            ]
-
-        logger.info(f"QueryProcessor: Final query: {query}")
-        total_count = await self.user_collection.count_documents(query)
-        logger.info(f"QueryProcessor: Query returned {total_count} documents")
-        
-        if offset <= 0 and limit <= 0:
-            cursor = self.user_collection.find(query)
-            all_users = []
-            async for doc in cursor:
-                try:
-                    # Convert MongoDB _id to string id
-                    if "_id" in doc:
-                        doc["id"] = str(doc["_id"])
-                        del doc["_id"]
-                    user = User(**doc)
-                    all_users.append(user)
-                except Exception as e:
-                    print(f"Error creating User from doc: {e}")
-                    continue
-            return UserListDTO(users=all_users, numberOfElements=total_count)
-        else:
-            start_index = min(offset * limit, total_count)
-            paginated_cursor = self.user_collection.find(query).skip(start_index).limit(limit)
-            paginated_list = []
-            async for doc in paginated_cursor:
-                try:
-                    # Convert MongoDB _id to string id
-                    if "_id" in doc:
-                        doc["id"] = str(doc["_id"])
-                        del doc["_id"]
-                    user = User(**doc)
-                    paginated_list.append(user)
-                except Exception as e:
-                    print(f"Error creating User from doc: {e}")
-                    continue
-            return UserListDTO(users=paginated_list, numberOfElements=total_count)
-
-        if contractId:
-            query["contracts._id"] = contractId
-            dummy_user = await self.userRepository.getUsersByUserIdAndContractId(
-                AppConstants.DUMMY_USER_ID, contractId
-            )
-            if dummy_user:
-                return UserListDTO(users=[dummy_user], numberOfElements=1)
-
-        self.userNameQuery(firstName, lastName, query)
-
-        if activated is not None:
-            query["isActivated"] = (activated.lower() == 'true')
-        
+        # User type filters
         all_user_types = []
         if userType:
             all_user_types.append(userType)
@@ -181,10 +101,12 @@ class QueryProcessor:
         if contractIdOnFile:
             query["contracts.contractID.contractID"] = contractIdOnFile
 
+        # Handle titles
         if titles:
             query["sites.sites.siteResponsibility._id"] = {"$in": titles}
             query["sites.sites.siteResponsibility"] = {"$exists": True}
 
+        # Handle complex site and department filtering with $elemMatch
         site_or_clauses = []
         if sites:
             site_or_clauses.append({"sites.sites": {"$elemMatch": {"_id": {"$in": sites}}}})
@@ -205,8 +127,9 @@ class QueryProcessor:
                 site_or_clauses.append({"$or": dept_or_clauses})
 
         if site_or_clauses:
-             query["$or"] = query.get("$or", []) + site_or_clauses
+            query["$or"] = query.get("$or", []) + site_or_clauses
 
+        # Handle text search
         if searchText:
             search_regex = {"$regex": searchText, "$options": "i"}
             query["$or"] = query.get("$or", []) + [
@@ -215,9 +138,13 @@ class QueryProcessor:
                 {"ssoId._id": search_regex},
             ]
 
+        logger.info(f"QueryProcessor: Final query: {query}")
         total_count = await self.user_collection.count_documents(query)
+        logger.info(f"QueryProcessor: Query returned {total_count} documents")
         
+        # Handle pagination
         if offset <= 0 and limit <= 0:
+            # No pagination - return all results
             cursor = self.user_collection.find(query)
             all_users = []
             async for doc in cursor:
@@ -229,10 +156,11 @@ class QueryProcessor:
                     user = User(**doc)
                     all_users.append(user)
                 except Exception as e:
-                    print(f"Error creating User from doc: {e}")
+                    logger.error(f"Error creating User from doc: {e}")
                     continue
             return UserListDTO(users=all_users, numberOfElements=total_count)
         else:
+            # With pagination
             start_index = min(offset * limit, total_count)
             paginated_cursor = self.user_collection.find(query).skip(start_index).limit(limit)
             paginated_list = []
@@ -245,7 +173,7 @@ class QueryProcessor:
                     user = User(**doc)
                     paginated_list.append(user)
                 except Exception as e:
-                    print(f"Error creating User from doc: {e}")
+                    logger.error(f"Error creating User from doc: {e}")
                     continue
             return UserListDTO(users=paginated_list, numberOfElements=total_count)
 

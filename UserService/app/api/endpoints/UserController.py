@@ -192,25 +192,35 @@ async def getUserList(
             contractIdOnFile, userTypes, searchText, offset, limit
         )
         
-        # Transform users in the result to match the single user endpoint format
+        # Transform users in the result to match the expected response format
         if result and hasattr(result, 'users') and result.users:
             transformed_users = []
             for user in result.users:
-                # Use exclude_none=True to avoid None fields that can cause validation issues
-                user_dict = user.model_dump(by_alias=True, exclude_none=True) if hasattr(user, 'model_dump') else user
+                # Serialize with all fields including None values (exclude_none=False)
+                user_dict = user.model_dump(by_alias=True, exclude_none=False) if hasattr(user, 'model_dump') else user
                 
-                # Flatten sites structure
+                # Remove npin only if it's None to avoid validation issues
+                if "npin" in user_dict and user_dict["npin"] is None:
+                    del user_dict["npin"]
+                
+                # Flatten sites structure - extract sites array from sites.sites
                 if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
                     user_dict["sites"] = user_dict["sites"]["sites"]
                 
-                # Convert avgLoginSession to object structure
+                # Convert avgLoginSession to object structure with milliseconds
                 if "avgLoginSession" in user_dict:
                     user_dict["avgLoginSession"] = {"milliseconds": user_dict["avgLoginSession"] if isinstance(user_dict["avgLoginSession"], (int, float)) else 0}
                 
-                # Convert null id to empty string in title
+                # Ensure title object structure with title and id fields
                 if "title" in user_dict and isinstance(user_dict["title"], dict):
-                    if "id" in user_dict["title"] and user_dict["title"]["id"] is None:
-                        user_dict["title"]["id"] = ""
+                    # Ensure both title and id fields exist
+                    if "title" not in user_dict["title"]:
+                        user_dict["title"]["title"] = None
+                    if "id" not in user_dict["title"]:
+                        user_dict["title"]["id"] = None
+                else:
+                    # If title doesn't exist or isn't a dict, create proper structure
+                    user_dict["title"] = {"title": None, "id": None}
                 
                 # Ensure suffix object structure
                 if "name" in user_dict and isinstance(user_dict["name"], dict):
@@ -218,6 +228,22 @@ async def getUserList(
                         user_dict["name"]["suffix"] = {"id": None, "suffix": None}
                     elif not isinstance(user_dict["name"]["suffix"], dict):
                         user_dict["name"]["suffix"] = {"id": None, "suffix": None}
+                
+                # Ensure boolean flags are present
+                if "activated" not in user_dict:
+                    user_dict["activated"] = False
+                if "invited" not in user_dict:
+                    user_dict["invited"] = False
+                if "blocked" not in user_dict:
+                    user_dict["blocked"] = False
+                if "deleted" not in user_dict:
+                    user_dict["deleted"] = False
+                if "personalEmailAddressAllowed" not in user_dict:
+                    user_dict["personalEmailAddressAllowed"] = False
+                if "executiveAccessLevelNeeded" not in user_dict:
+                    user_dict["executiveAccessLevelNeeded"] = False
+                if "surrogateEnabled" not in user_dict:
+                    user_dict["surrogateEnabled"] = False
                 
                 transformed_users.append(user_dict)
             
@@ -1421,7 +1447,7 @@ async def getUserListById(
     try:
         user = await controller.userService.getUserListById(X_tenantID, userId)
         user_dict = user.model_dump(by_alias=True, exclude_none=False)
-        
+        print(user_dict)
         # Flatten sites structure - extract sites array from sites.sites
         if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
             user_dict["sites"] = user_dict["sites"]["sites"]
