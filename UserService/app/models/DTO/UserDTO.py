@@ -30,6 +30,7 @@ from ..valueobjects.SurrogateSchedule import SurrogateSchedule
 from ..valueobjects.Tenant import Tenant
 from ..valueobjects.Title import Title
 from ..valueobjects.UserType import UserType
+from .AccessScopeResponseDTO import AccessScopeResponseDTO
 
 class UserDTO(BaseModel):
     # Accept both field names and aliases across pydantic versions
@@ -40,18 +41,19 @@ class UserDTO(BaseModel):
             allow_population_by_field_name = True
 
     id: Optional[str] = None
-    name: 'Name'
+    name: Optional['Name'] = None
     userType: Optional['UserType'] = None
     contracts: Optional[List['Contract']] = []
     title: Optional['Title'] = None
-    email: 'Email'
-    password: 'Password'
-    communication: 'Communication'
+    email: Optional['Email'] = None
+    password: Optional['Password'] = None
+    communication: Optional['Communication'] = None
     roles: List['Role'] = Field(default_factory=list)
     address: Optional['Address'] = None
-    tenant: 'Tenant'
+    tenant: Optional['Tenant'] = None
     partnerId: Optional['PartnerId'] = None
     sites: Optional['Sites'] = None
+    accessScope: Optional['AccessScopeResponseDTO'] = None
     # Accept lowercase 'npin' from requests, map to internal nPIN
     nPIN: Optional['NPIN'] = Field(None, alias="npin")
     serviceProviderType: Optional['ContractedServiceProviderType'] = None
@@ -83,12 +85,17 @@ class UserDTO(BaseModel):
     def to_domain(self) -> 'User':
         from ..aggregates.root.User import User
         payload = {}
-        # Required domain fields
-        payload['name'] = self.name
-        payload['email'] = self.email
-        payload['password'] = self.password
-        payload['communication'] = self.communication
-        payload['tenant'] = self.tenant
+        # Handle optional required-like fields
+        if self.name is not None:
+            payload['name'] = self.name
+        if self.email is not None:
+            payload['email'] = self.email
+        if self.password is not None:
+            payload['password'] = self.password
+        if self.communication is not None:
+            payload['communication'] = self.communication
+        if self.tenant is not None:
+            payload['tenant'] = self.tenant
         # Straight mappings
         if self.id is not None:
             payload['id'] = self.id
@@ -106,6 +113,8 @@ class UserDTO(BaseModel):
             payload['partnerId'] = self.partnerId
         if self.sites is not None:
             payload['sites'] = self.sites
+        if self.accessScope is not None:
+            payload['accessScope'] = self.accessScope
         if self.nPIN is not None:
             payload['nPIN'] = self.nPIN
         if self.serviceProviderType is not None:

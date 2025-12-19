@@ -170,7 +170,7 @@ async def getUserList(
     
     Retrieves a filtered and paginated list of users for a specific tenant.
     Supports multiple filter criteria including name, contract, status, user type, sites, departments, titles, and text search.
-    Returns UserListDTO containing the list of users and total count.
+    Returns UserListDTO containing the list of users and total count, including access scope for each user.
     
     Query Parameters:
         - firstName, lastName: Filter by user name
@@ -183,7 +183,7 @@ async def getUserList(
         - offset, limit: Pagination parameters (default limit=0 returns all)
     
     Returns:
-        UserListDTO with filtered users and total count
+        UserListDTO with filtered users (including accessScope) and total count
     """
     try:
         result = await controller.userService.getUserList(
@@ -245,6 +245,72 @@ async def getUserList(
                 if "surrogateEnabled" not in user_dict:
                     user_dict["surrogateEnabled"] = False
                 
+                # Retrieve and add access scope for the user
+                try:
+                    if hasattr(user, 'id') and user.id:
+                        access_scope_result = await controller.userService.getUserAccessScope(X_tenantID, user.id)
+                        
+                        # Transform accessScope to match the response structure
+                        if isinstance(access_scope_result, dict):
+                            # Convert roles array
+                            roles = []
+                            if "roles" in access_scope_result:
+                                for role in access_scope_result["roles"]:
+                                    if isinstance(role, dict):
+                                        role_dict = {
+                                            "id": role.get("id"),
+                                            "roleName": role.get("roleName"),
+                                            "roleDescription": role.get("roleDescription"),
+                                            "roleType": role.get("roleType", "SYSTEM"),
+                                            "rolePerformerTypes": role.get("rolePerformerTypes", [])
+                                        }
+                                        roles.append(role_dict)
+                                    else:
+                                        if hasattr(role, 'model_dump'):
+                                            role_dict = role.model_dump()
+                                        elif hasattr(role, 'dict'):
+                                            role_dict = role.dict()
+                                        else:
+                                            role_dict = role.__dict__ if hasattr(role, '__dict__') else {}
+                                        
+                                        roles.append({
+                                            "id": role_dict.get("id"),
+                                            "roleName": role_dict.get("roleName"),
+                                            "roleDescription": role_dict.get("roleDescription"),
+                                            "roleType": role_dict.get("roleType", "SYSTEM"),
+                                            "rolePerformerTypes": role_dict.get("rolePerformerTypes", [])
+                                        })
+                            
+                            # Get accessScopes from result
+                            access_scopes = access_scope_result.get("accessScopes", [])
+                            
+                            # Build the proper accessScope structure
+                            user_dict["accessScope"] = {
+                                "roles": roles,
+                                "allRegionsApplicable": False,
+                                "regions": access_scopes if isinstance(access_scopes, list) else []
+                            }
+                        else:
+                            user_dict["accessScope"] = {
+                                "roles": [],
+                                "allRegionsApplicable": False,
+                                "regions": []
+                            }
+                    else:
+                        user_dict["accessScope"] = {
+                            "roles": [],
+                            "allRegionsApplicable": False,
+                            "regions": []
+                        }
+                except Exception as e:
+                    # If access scope retrieval fails, provide empty structure
+                    print(f"Warning: Could not retrieve access scope for user: {str(e)}")
+                    user_dict["accessScope"] = {
+                        "roles": [],
+                        "allRegionsApplicable": False,
+                        "regions": []
+                    }
+                
                 transformed_users.append(user_dict)
             
             # Replace users list with transformed dicts
@@ -276,7 +342,6 @@ async def getUserListByRole(
 @router.put("")
 async def updateUser(
     userDTO: UserDTO,
-    X_Authorization: str = Header(alias="X-Authorization"),
     X_tenantID: str = Header(alias="X-tenantID"),
     controller: UserController = Depends(get_user_controller)
 ) -> str:
@@ -288,15 +353,42 @@ async def updateUser(
     Validates user ID, email uniqueness, tenant membership, and SSO ID before updating.
     Preserves existing password during update. Returns success message on completion.
     
+    Accepts comprehensive user request payload including:
+    - Basic user information (name, email, communication details)
+    - User roles and access scope with hierarchical regions, sites, and departments
+    - Professional details (title, serviceProviderType, licenceDetails)
+    - Billing information and site/department responsibilities
+    - SSO configuration and surrogate scheduling
+    - Account status flags (activated, invited, blocked, deleted, surrogateEnabled)
+    
+    Request Payload Structure:
+    {
+        "id": "string",
+        "name": { "firstName": "string", "lastName": "string", "middleName": "string", "suffix": {...} },
+        "userType": "ADMIN|CONTRACTOR|...",
+        "email": { "officialEmail": "string" },
+        "communication": { "personalEmail": "string", "mobileNumber": "string", ... },
+        "roles": [{ "id": "string", "roleName": "string", ... }],
+        "accessScope": { "roles": [...], "allRegionsApplicable": bool, "regions": [...] },
+        "title": { "title": "string", "id": "string" },
+        "address": { "city": "string", "state": "string", ... },
+        "tenant": { "tenantId": "string" },
+        "sites": { "sites": [{ "id": "string", "siteName": {...}, ... }] },
+        "licenceDetails": { "medicalLicense": "string", "licenseExpiryDate": "2025-12-19", ... },
+        "activated": true,
+        "invited": true,
+        "blocked": true,
+        "deleted": true,
+        "surrogateEnabled": true,
+        ...
+    }
+    
     Validations:
         - User ID must not be blank
         - User must exist and belong to the specified tenant
         - Email cannot be changed to one already used by another user in tenant
         - SSO ID is required
         - Password is preserved from existing record (not updated via this endpoint)
-    
-    Request Body:
-        UserDTO with all user fields including id, name, email, tenant, roles, etc.
     
     Returns:
         Success message string: "User Updated Successfully"
