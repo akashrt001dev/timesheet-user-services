@@ -2874,7 +2874,7 @@ class UserService:
                     response["sites"].append(site_info)
             
             # Add contract access
-            if user.contracts:
+            if hasattr(user, 'contracts') and user.contracts:
                 for contract in user.contracts:
                     contract_info = {
                         "contractId": contract.id if hasattr(contract, 'id') else "",
