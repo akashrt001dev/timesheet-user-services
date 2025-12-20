@@ -140,6 +140,7 @@ class MongoRepository(ABC, Generic[T]):
         """Recursively convert objects to Mongo-safe JSON-friendly values.
         - date/datetime -> ISO string
         - Enum -> value (string)
+        - Pydantic models -> dict (with id->_id conversion for MongoDB)
         - set/tuple -> list
         - dict/list -> recurse
         """
@@ -153,10 +154,26 @@ class MongoRepository(ABC, Generic[T]):
                 return str(obj)
         if isinstance(obj, Enum):
             return obj.value
+        # Handle Pydantic models - convert to dict recursively
+        if hasattr(obj, 'model_dump'):
+            # Pydantic v2
+            dict_obj = obj.model_dump(by_alias=False)
+            return self._to_bson_safe(dict_obj)
+        elif hasattr(obj, 'dict'):
+            # Pydantic v1
+            dict_obj = obj.dict(by_alias=False)
+            return self._to_bson_safe(dict_obj)
         if isinstance(obj, (list, tuple, set)):
             return [self._to_bson_safe(i) for i in list(obj)]
         if isinstance(obj, dict):
-            return {k: self._to_bson_safe(v) for k, v in obj.items()}
+            # Convert id -> _id for MongoDB format in nested objects
+            result = {}
+            for k, v in obj.items():
+                # Convert 'id' field to '_id' for MongoDB storage format
+                # This ensures nested objects (SsoId, Title, etc.) use _id
+                key_to_use = '_id' if k == 'id' else k
+                result[key_to_use] = self._to_bson_safe(v)
+            return result
         return obj
     
     @staticmethod

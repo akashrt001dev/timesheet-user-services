@@ -83,9 +83,18 @@ class UserDTO(BaseModel):
     surrogateSchedule: Optional[List['SurrogateSchedule']] = []
 
     def to_domain(self) -> 'User':
+        """Convert DTO to domain User model.
+        Only includes fields that are explicitly provided (not None).
+        Supports partial updates by skipping None values.
+        """
         from ..aggregates.root.User import User
+        from ..valueobjects.AccessScope import AccessScope, Role, Region
+        
         payload = {}
-        # Handle optional required-like fields
+        
+        # Only include fields that are explicitly provided
+        if self.id is not None:
+            payload['id'] = self.id
         if self.name is not None:
             payload['name'] = self.name
         if self.email is not None:
@@ -96,16 +105,13 @@ class UserDTO(BaseModel):
             payload['communication'] = self.communication
         if self.tenant is not None:
             payload['tenant'] = self.tenant
-        # Straight mappings
-        if self.id is not None:
-            payload['id'] = self.id
         if self.userType is not None:
             payload['userType'] = self.userType
-        if self.contracts is not None:
+        if self.contracts is not None and len(self.contracts) > 0:
             payload['contracts'] = self.contracts
         if self.title is not None:
             payload['title'] = self.title
-        if self.roles is not None:
+        if self.roles is not None and len(self.roles) > 0:
             payload['roles'] = list(self.roles)
         if self.address is not None:
             payload['address'] = self.address
@@ -113,8 +119,58 @@ class UserDTO(BaseModel):
             payload['partnerId'] = self.partnerId
         if self.sites is not None:
             payload['sites'] = self.sites
+        
+        # Convert AccessScopeResponseDTO to AccessScope domain model
         if self.accessScope is not None:
-            payload['accessScope'] = self.accessScope
+            try:
+                # AccessScopeResponseDTO has structure: roles[] and accessScopes[]
+                # Convert to domain AccessScope structure: roles[] and regions[]
+                access_scope_data = {}
+                
+                # Extract roles from the response DTO
+                if self.accessScope.roles:
+                    access_scope_data['roles'] = [
+                        Role(
+                            id=role.id,
+                            roleName=role.roleName,
+                            roleDescription=role.roleDescription,
+                            roleType=role.roleType,
+                            rolePerformerTypes=role.rolePerformerTypes or []
+                        )
+                        for role in self.accessScope.roles
+                    ]
+                else:
+                    access_scope_data['roles'] = []
+                
+                # Extract regions from accessScopes
+                regions = []
+                if self.accessScope.accessScopes:
+                    # Each AccessScopeDetailDTO can have regions
+                    for scope_detail in self.accessScope.accessScopes:
+                        if scope_detail.regions:
+                            # Convert RegionDTO to Region domain model
+                            for region_dto in scope_detail.regions:
+                                try:
+                                    # Handle RegionDTO structure - convert to dict for Region model
+                                    region_dict = region_dto.model_dump() if hasattr(region_dto, 'model_dump') else region_dto.__dict__
+                                    region = Region(**region_dict)
+                                    regions.append(region)
+                                except Exception as region_e:
+                                    print(f"Warning: Could not convert region: {region_e}")
+                                    continue
+                
+                access_scope_data['regions'] = regions or []
+                access_scope_data['allRegionsApplicable'] = False
+                
+                payload['accessScope'] = AccessScope(**access_scope_data)
+                print(f"[to_domain] Successfully converted accessScope with {len(regions)} regions")
+            except Exception as e:
+                # If conversion fails, log and skip accessScope
+                print(f"Warning: Could not convert accessScope: {e}")
+                import traceback
+                traceback.print_exc()
+                pass
+        
         if self.nPIN is not None:
             payload['nPIN'] = self.nPIN
         if self.serviceProviderType is not None:
@@ -131,7 +187,7 @@ class UserDTO(BaseModel):
             payload['currentLogin'] = self.currentLogin
         if self.lastLogin is not None:
             payload['lastLogin'] = self.lastLogin
-        if self.avgLoginCount is not None:
+        if self.avgLoginCount is not None and self.avgLoginCount > 0:
             payload['avgLoginCount'] = self.avgLoginCount
         if self.deactivatedBy is not None:
             payload['deactivatedBy'] = self.deactivatedBy
@@ -145,9 +201,10 @@ class UserDTO(BaseModel):
             payload['ssoId'] = self.ssoId
         if self.professionalServicesBilling is not None:
             payload['professionalServicesBilling'] = self.professionalServicesBilling
-        if self.surrogateSchedule is not None:
+        if self.surrogateSchedule is not None and len(self.surrogateSchedule) > 0:
             payload['surrogateSchedule'] = self.surrogateSchedule
-        # Booleans (explicit to ensure alias names map to internal 'is*' fields)
+        
+        # Include all boolean flags (they have defaults)
         payload['isExecutiveAccessLevelNeeded'] = bool(self.isExecutiveAccessLevelNeeded)
         payload['isSiteLevelResponsible'] = bool(self.isSiteLevelResponsible)
         payload['isDepartmentLevelResponsible'] = bool(self.isDepartmentLevelResponsible)
@@ -157,4 +214,5 @@ class UserDTO(BaseModel):
         payload['isDeleted'] = bool(self.isDeleted)
         payload['isBlocked'] = bool(self.isBlocked)
         payload['isSurrogateEnabled'] = bool(self.isSurrogateEnabled)
+        
         return User(**payload)

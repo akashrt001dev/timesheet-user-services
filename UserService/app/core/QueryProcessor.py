@@ -34,11 +34,57 @@ class QueryProcessor:
         logger.info(f"QueryProcessor initialized with collection: {self.user_collection.name}")
         self.n_days_before = 30
 
+    def _convert_objectids_and_ids(self, obj: Any) -> Any:
+        """Recursively convert ObjectId instances to strings and handle nested _id fields.
+        This mirrors the MongoRepository conversion logic to ensure consistent handling.
+        """
+        if obj is None:
+            return None
+        
+        # Handle ObjectId
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        
+        # Handle dict
+        if isinstance(obj, dict):
+            converted = {}
+            for key, value in obj.items():
+                # Skip _class field from MongoDB Spring Data
+                if key == '_class':
+                    continue
+                # Recursively convert nested values
+                converted[key] = self._convert_objectids_and_ids(value)
+            
+            # Handle _id -> id conversion for nested value objects
+            if "_id" in converted and "id" not in converted:
+                converted["id"] = converted.pop("_id")
+            
+            return converted
+        
+        # Handle list
+        if isinstance(obj, list):
+            return [self._convert_objectids_and_ids(item) for item in obj]
+        
+        # Return as-is for primitives
+        return obj
+
+    def _document_to_user(self, doc: Dict[str, Any]) -> User:
+        """Convert a MongoDB document to a User instance with proper _id/_class handling."""
+        try:
+            # Use the repository's conversion logic
+            doc = self._convert_objectids_and_ids(doc)
+            return User.model_validate(doc) if hasattr(User, 'model_validate') else User(**doc)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating User from doc: {e}")
+            raise
+
     async def getUsersByEmailIdList(self, emailList: List[Email]) -> List[User]:
         email_strs = [email.officialEmail for email in emailList]
         query = {"email.officialEmail": {"$in": email_strs}}
         cursor = self.user_collection.find(query)
-        return [User(**doc) async for doc in cursor]
+        return [self._document_to_user(doc) async for doc in cursor]
 
     def userNameQuery(self, firstName: Optional[str], lastName: Optional[str], query: Dict[str, Any]):
         """Helper to build username regex queries."""
@@ -149,11 +195,7 @@ class QueryProcessor:
             all_users = []
             async for doc in cursor:
                 try:
-                    # Convert MongoDB _id to string id
-                    if "_id" in doc:
-                        doc["id"] = str(doc["_id"])
-                        del doc["_id"]
-                    user = User(**doc)
+                    user = self._document_to_user(doc)
                     all_users.append(user)
                 except Exception as e:
                     logger.error(f"Error creating User from doc: {e}")
@@ -166,11 +208,7 @@ class QueryProcessor:
             paginated_list = []
             async for doc in paginated_cursor:
                 try:
-                    # Convert MongoDB _id to string id
-                    if "_id" in doc:
-                        doc["id"] = str(doc["_id"])
-                        del doc["_id"]
-                    user = User(**doc)
+                    user = self._document_to_user(doc)
                     paginated_list.append(user)
                 except Exception as e:
                     logger.error(f"Error creating User from doc: {e}")
@@ -275,7 +313,7 @@ class QueryProcessor:
         sort_direction = DESCENDING if sortOrder.lower() == "desc" else ASCENDING
         
         cursor = self.user_collection.find(query).sort([("name.firstName", sort_direction)])
-        return [User(**doc) async for doc in cursor]
+        return [self._document_to_user(doc) async for doc in cursor]
     
     async def getAllAccountsPayableByEntity(self, entityId: str) -> List[str]:
         query = {
@@ -293,7 +331,7 @@ class QueryProcessor:
             "lastLogin": None
         }
         cursor = self.user_collection.find(query)
-        return [User(**doc) async for doc in cursor]
+        return [self._document_to_user(doc) async for doc in cursor]
 
     async def getUsersByIdsAndContractsAndSitesAndDepartments(self, tenantId: str, contracts: List[str], userIds: List[str],
                                                               sites: List[str], departments: List[str]) -> List[User]:
@@ -323,7 +361,7 @@ class QueryProcessor:
             }
         
         cursor = self.user_collection.find(query)
-        return [User(**doc) async for doc in cursor]
+        return [self._document_to_user(doc) async for doc in cursor]
 
     async def getSurrogateUsersByRoles(self, tenantId: str, roles: Set[Role], userId: str) -> List[User]:
         role_ids = [ObjectId(role.id) for role in roles]
@@ -334,7 +372,7 @@ class QueryProcessor:
             "roles._id": {"$all": role_ids}
         }
         cursor = self.user_collection.find(query)
-        return [User(**doc) async for doc in cursor]
+        return [self._document_to_user(doc) async for doc in cursor]
 
     async def getCurrentHoldersForIssuer(self, tenantId: str, issuerId: str) -> List[SurrogateLog]:
         now = datetime.now(timezone.utc)
@@ -365,7 +403,7 @@ class QueryProcessor:
             query["sites.sites.siteResponsibility._id"] = {"$in": titles}
         
         cursor = self.user_collection.find(query)
-        return [User(**doc) async for doc in cursor]
+        return [self._document_to_user(doc) async for doc in cursor]
 
     async def getUserMetadata(self, tenantId: str, siteId: Optional[str], startDate: str, endDate: str) -> Dict[str, Dict[str, int]]:
         """

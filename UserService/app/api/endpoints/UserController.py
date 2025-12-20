@@ -245,71 +245,7 @@ async def getUserList(
                 if "surrogateEnabled" not in user_dict:
                     user_dict["surrogateEnabled"] = False
                 
-                # Retrieve and add access scope for the user
-                try:
-                    if hasattr(user, 'id') and user.id:
-                        access_scope_result = await controller.userService.getUserAccessScope(X_tenantID, user.id)
-                        
-                        # Transform accessScope to match the response structure
-                        if isinstance(access_scope_result, dict):
-                            # Convert roles array
-                            roles = []
-                            if "roles" in access_scope_result:
-                                for role in access_scope_result["roles"]:
-                                    if isinstance(role, dict):
-                                        role_dict = {
-                                            "id": role.get("id"),
-                                            "roleName": role.get("roleName"),
-                                            "roleDescription": role.get("roleDescription"),
-                                            "roleType": role.get("roleType", "SYSTEM"),
-                                            "rolePerformerTypes": role.get("rolePerformerTypes", [])
-                                        }
-                                        roles.append(role_dict)
-                                    else:
-                                        if hasattr(role, 'model_dump'):
-                                            role_dict = role.model_dump()
-                                        elif hasattr(role, 'dict'):
-                                            role_dict = role.dict()
-                                        else:
-                                            role_dict = role.__dict__ if hasattr(role, '__dict__') else {}
-                                        
-                                        roles.append({
-                                            "id": role_dict.get("id"),
-                                            "roleName": role_dict.get("roleName"),
-                                            "roleDescription": role_dict.get("roleDescription"),
-                                            "roleType": role_dict.get("roleType", "SYSTEM"),
-                                            "rolePerformerTypes": role_dict.get("rolePerformerTypes", [])
-                                        })
-                            
-                            # Get accessScopes from result
-                            access_scopes = access_scope_result.get("accessScopes", [])
-                            
-                            # Build the proper accessScope structure
-                            user_dict["accessScope"] = {
-                                "roles": roles,
-                                "allRegionsApplicable": False,
-                                "regions": access_scopes if isinstance(access_scopes, list) else []
-                            }
-                        else:
-                            user_dict["accessScope"] = {
-                                "roles": [],
-                                "allRegionsApplicable": False,
-                                "regions": []
-                            }
-                    else:
-                        user_dict["accessScope"] = {
-                            "roles": [],
-                            "allRegionsApplicable": False,
-                            "regions": []
-                        }
-                except Exception as e:
-                    # If access scope retrieval fails, provide empty structure
-                    print(f"Warning: Could not retrieve access scope for user: {str(e)}")
-                    user_dict["accessScope"] = {
-                        "roles": [],
-                        "allRegionsApplicable": False,
-                        "regions": []
-                    }
+             
                 
                 transformed_users.append(user_dict)
             
@@ -344,66 +280,103 @@ async def updateUser(
     userDTO: UserDTO,
     X_tenantID: str = Header(alias="X-tenantID"),
     controller: UserController = Depends(get_user_controller)
-) -> str:
+) -> dict:
     """
-    Equivalent to Java: @PutMapping()
-    public ResponseEntity<String> updateUser(@RequestBody UserDTO userDTO, @RequestHeader(value = "X-tenantID") String tenantId)
+    Updates an existing user with support for partial updates.
     
-    Updates an existing user in the specified tenant.
-    Validates user ID, email uniqueness, tenant membership, and SSO ID before updating.
-    Preserves existing password during update. Returns success message on completion.
+    This endpoint supports comprehensive user updates with the following capabilities:
+    - Partial field updates (only provided fields are updated)
+    - Nested object handling (name, email, communication, address, etc.)
+    - Complex hierarchical data (roles, access scopes with regions/sites/departments)
+    - Preserves existing password (password updates via separate endpoint)
+    - Validates email uniqueness within tenant
+    - Maintains referential integrity for tenant, roles, and site assignments
     
-    Accepts comprehensive user request payload including:
-    - Basic user information (name, email, communication details)
-    - User roles and access scope with hierarchical regions, sites, and departments
-    - Professional details (title, serviceProviderType, licenceDetails)
-    - Billing information and site/department responsibilities
-    - SSO configuration and surrogate scheduling
-    - Account status flags (activated, invited, blocked, deleted, surrogateEnabled)
+    Request Requirements:
+        - User ID must be provided and must exist
+        - Tenant ID from header must match user's tenant
+        - Email (if changed) must be unique within tenant
+        - All nested objects follow proper structure (see examples)
     
-    Request Payload Structure:
-    {
-        "id": "string",
-        "name": { "firstName": "string", "lastName": "string", "middleName": "string", "suffix": {...} },
-        "userType": "ADMIN|CONTRACTOR|...",
-        "email": { "officialEmail": "string" },
-        "communication": { "personalEmail": "string", "mobileNumber": "string", ... },
-        "roles": [{ "id": "string", "roleName": "string", ... }],
-        "accessScope": { "roles": [...], "allRegionsApplicable": bool, "regions": [...] },
-        "title": { "title": "string", "id": "string" },
-        "address": { "city": "string", "state": "string", ... },
-        "tenant": { "tenantId": "string" },
-        "sites": { "sites": [{ "id": "string", "siteName": {...}, ... }] },
-        "licenceDetails": { "medicalLicense": "string", "licenseExpiryDate": "2025-12-19", ... },
-        "activated": true,
-        "invited": true,
-        "blocked": true,
-        "deleted": true,
-        "surrogateEnabled": true,
-        ...
-    }
-    
-    Validations:
-        - User ID must not be blank
-        - User must exist and belong to the specified tenant
-        - Email cannot be changed to one already used by another user in tenant
-        - SSO ID is required
-        - Password is preserved from existing record (not updated via this endpoint)
+    Supported Request Fields:
+        Basic: id, name, email, userType, communication, title, address
+        Access: roles, accessScope, accessLevel, tenant
+        Status: activated, blocked, invited, deleted, surrogateEnabled
+        Professional: serviceProviderType, licenceDetails, sites
+        SSO: ssoId
+        Other: contracts, partnerId, profilePic, etc.
     
     Returns:
-        Success message string: "User Updated Successfully"
+        {
+            "status": "success",
+            "message": "User updated successfully",
+            "userId": "<user_id>"
+        }
     
-    Raises:
-        400: User ID blank, email already exists, SSO ID missing
-        404: User not found, user not in tenant
+    Status Codes:
+        200: User updated successfully
+        400: Validation failed (invalid email, duplicate email, missing required fields)
+        404: User not found or user not in tenant
+        422: Invalid request payload structure
+        500: Server error
     """
     try:
-        # Convert DTO to domain model before passing to service
+        # Validate required fields
+        if not userDTO.id or not userDTO.id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User ID is required for update"
+            )
+        
+        # Validate tenant header
+        if not X_tenantID or not X_tenantID.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tenant ID (X-tenantID header) is required"
+            )
+        
+        # Log incoming request for debugging
+        print(f"[PUT /user] Updating user: id={userDTO.id}, tenant={X_tenantID}")
+        
+        # Convert DTO to domain model (only includes provided fields)
         user = userDTO.to_domain()
+        
+        # Ensure tenant is set from header
+        if user.tenant is None or not user.tenant.tenantId:
+            from app.models.valueobjects.Tenant import Tenant
+            user.tenant = Tenant(tenantId=X_tenantID)
+        
+        # Call service to perform update
         result = await controller.userService.updateUser(user, X_tenantID)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        
+        return {
+            "status": "success",
+            "message": result,
+            "userId": userDTO.id
+        }
+    
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions with their status codes
+        print(f"[PUT /user] HTTP Exception: {http_exc.detail}")
+        raise http_exc
+    
+    except ValueError as val_err:
+        # Handle validation errors from domain model
+        print(f"[PUT /user] Validation Error: {str(val_err)}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Validation error: {str(val_err)}"
+        )
+    
+    except Exception as exc:
+        # Log unexpected errors with full traceback
+        import traceback
+        print(f"[PUT /user] Unexpected Error: {str(exc)}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while updating user. Please try again later."
+        )
 
 # NOTE: The dynamic '/{userId}' route must come AFTER all static single-segment routes
 # to avoid shadowing them (e.g., '/metadata', '/getUser', '/ListOfId', etc.).
@@ -1570,64 +1543,6 @@ async def getUserListById(
             elif not isinstance(user_dict["name"]["suffix"], dict):
                 user_dict["name"]["suffix"] = {"id": None, "suffix": None}
         
-        # Get access scope for the user
-        try:
-            access_scope_result = await controller.userService.getUserAccessScope(X_tenantID, userId)
-            
-            # Transform accessScope to match the response structure
-            if isinstance(access_scope_result, dict):
-                # Convert roles array
-                roles = []
-                if "roles" in access_scope_result:
-                    for role in access_scope_result["roles"]:
-                        if isinstance(role, dict):
-                            role_dict = {
-                                "id": role.get("id"),
-                                "roleName": role.get("roleName"),
-                                "roleDescription": role.get("roleDescription"),
-                                "roleType": role.get("roleType", "SYSTEM"),
-                                "rolePerformerTypes": role.get("rolePerformerTypes", [])
-                            }
-                            roles.append(role_dict)
-                        elif isinstance(role, str):
-                            roles.append({
-                                "id": None,
-                                "roleName": role,
-                                "roleDescription": role,
-                                "roleType": "SYSTEM",
-                                "rolePerformerTypes": []
-                            })
-                        else:
-                            if hasattr(role, 'model_dump'):
-                                role_dict = role.model_dump()
-                            elif hasattr(role, 'dict'):
-                                role_dict = role.dict()
-                            else:
-                                role_dict = role.__dict__ if hasattr(role, '__dict__') else {}
-                            
-                            roles.append({
-                                "id": role_dict.get("id"),
-                                "roleName": role_dict.get("roleName"),
-                                "roleDescription": role_dict.get("roleDescription"),
-                                "roleType": role_dict.get("roleType", "SYSTEM"),
-                                "rolePerformerTypes": role_dict.get("rolePerformerTypes", [])
-                            })
-                
-                # Build accessScope structure
-                access_scopes = access_scope_result.get("accessScopes", [])
-                user_dict["accessScope"] = {
-                    "roles": roles,
-                    "allRegionsApplicable": False,
-                    "regions": access_scopes if isinstance(access_scopes, list) else []
-                }
-        except Exception as e:
-            # If access scope retrieval fails, provide empty structure
-            print(f"Warning: Could not retrieve access scope for user {userId}: {str(e)}")
-            user_dict["accessScope"] = {
-                "roles": [],
-                "allRegionsApplicable": False,
-                "regions": []
-            }
         
         return user_dict
     except HTTPException as he:

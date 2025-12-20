@@ -596,15 +596,171 @@ class UserService:
 
     async def updateUser(self, user: User, tenantId: str) -> str:
         """
-        Update user.
-        """
-        if user.id is not None:
-            # Handle user ID logic
-            pass
+        Update user with partial update support.
         
-        user = await self.userUpdateValidation(user, tenantId)
-        await self.userRepository.save(user)
+        This method implements a merge strategy:
+        1. Retrieves the existing user from database
+        2. Validates the update request
+        3. Merges provided fields with existing user data
+        4. Validates the merged result
+        5. Saves to database
+        
+        Args:
+            user: User object with fields to update (only non-None fields are merged)
+            tenantId: Tenant ID for validation
+            
+        Returns:
+            Success message
+            
+        Raises:
+            HTTPException: If validation fails
+        """
+        print(f"[updateUser] Starting update for userId={user.id}")
+        
+        # Validate user ID
+        if not user.id or user.id.strip() == "":
+            raise HTTPException(status_code=400, detail="User ID cannot be blank")
+        
+        # Retrieve existing user from database
+        existingUser = await self.userRepository.findById(user.id)
+        if existingUser is None:
+            print(f"[updateUser] User not found: {user.id}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        print(f"[updateUser] Found existing user: {user.id}")
+        
+        # Validate tenant membership
+        tenant = Tenant(tenantId=tenantId)
+        userInTenant = await self.userRepository.findByIdAndTenant(user.id, tenant)
+        if userInTenant is None:
+            print(f"[updateUser] User not in tenant: userId={user.id}, tenantId={tenantId}")
+            raise HTTPException(status_code=404, detail="User not available in tenant")
+        
+        # Merge provided fields with existing user
+        mergedUser = self._merge_user_fields(existingUser, user)
+        
+        # Validate merged user
+        mergedUser = await self.userUpdateValidation(mergedUser, tenantId)
+        
+        # Save to database
+        await self.userRepository.save(mergedUser)
+        
+        print(f"[updateUser] User updated successfully: {user.id}")
         return "User Updated Successfully"
+    
+    def _merge_user_fields(self, existing: User, updates: User) -> User:
+        """
+        Merge update fields into existing user object.
+        
+        This implements partial update by only overwriting fields that are
+        explicitly provided in the update request.
+        
+        Args:
+            existing: Existing user from database
+            updates: User object with fields to update
+            
+        Returns:
+            Merged user object with updated fields
+        """
+        # Merge simple fields (only if provided)
+        if updates.id is not None:
+            existing.id = updates.id
+        
+        if updates.name is not None:
+            existing.name = updates.name
+        
+        if updates.email is not None:
+            existing.email = updates.email
+        
+        if updates.communication is not None:
+            existing.communication = updates.communication
+        
+        if updates.userType is not None:
+            existing.userType = updates.userType
+        
+        if updates.title is not None:
+            existing.title = updates.title
+        
+        if updates.address is not None:
+            existing.address = updates.address
+        
+        if updates.tenant is not None:
+            existing.tenant = updates.tenant
+        
+        if updates.ssoId is not None:
+            existing.ssoId = updates.ssoId
+        
+        if updates.accessLevel is not None:
+            existing.accessLevel = updates.accessLevel
+        
+        if updates.serviceProviderType is not None:
+            existing.serviceProviderType = updates.serviceProviderType
+        
+        if updates.licenceDetails is not None:
+            existing.licenceDetails = updates.licenceDetails
+        
+        if updates.accessScope is not None:
+            existing.accessScope = updates.accessScope
+        
+        # Merge collections (roles, contracts, sites, etc.)
+        if updates.roles is not None and len(updates.roles) > 0:
+            existing.roles = updates.roles
+        
+        # Only merge contracts if the attribute exists (some User models may not have contracts field)
+        if hasattr(updates, 'contracts') and updates.contracts is not None and len(updates.contracts) > 0:
+            if hasattr(existing, 'contracts'):
+                existing.contracts = updates.contracts
+        
+        if updates.sites is not None:
+            existing.sites = updates.sites
+        
+        if updates.partnerId is not None:
+            existing.partnerId = updates.partnerId
+        
+        if updates.profilePic is not None:
+            existing.profilePic = updates.profilePic
+        
+        if updates.professionalServicesBilling is not None:
+            existing.professionalServicesBilling = updates.professionalServicesBilling
+        
+        if updates.surrogateSchedule is not None and len(updates.surrogateSchedule) > 0:
+            existing.surrogateSchedule = updates.surrogateSchedule
+        
+        # Merge boolean flags
+        if updates.isExecutiveAccessLevelNeeded:
+            existing.isExecutiveAccessLevelNeeded = updates.isExecutiveAccessLevelNeeded
+        
+        # Only merge site/department responsibility if attributes exist
+        if hasattr(updates, 'isSiteLevelResponsible') and updates.isSiteLevelResponsible:
+            if hasattr(existing, 'isSiteLevelResponsible'):
+                existing.isSiteLevelResponsible = updates.isSiteLevelResponsible
+        
+        if hasattr(updates, 'isDepartmentLevelResponsible') and updates.isDepartmentLevelResponsible:
+            if hasattr(existing, 'isDepartmentLevelResponsible'):
+                existing.isDepartmentLevelResponsible = updates.isDepartmentLevelResponsible
+        
+        if updates.isActivated:
+            existing.isActivated = updates.isActivated
+        
+        if updates.isInvited:
+            existing.isInvited = updates.isInvited
+        
+        if updates.isPersonalEmailAddressAllowed:
+            existing.isPersonalEmailAddressAllowed = updates.isPersonalEmailAddressAllowed
+        
+        if updates.isDeleted:
+            existing.isDeleted = updates.isDeleted
+        
+        if updates.isBlocked:
+            existing.isBlocked = updates.isBlocked
+        
+        if updates.isSurrogateEnabled:
+            existing.isSurrogateEnabled = updates.isSurrogateEnabled
+        
+        # Preserve password from existing record (not updated via this endpoint)
+        # Password is only updated via dedicated password endpoints
+        
+        return existing
 
     async def checkUserInTenant(self, ssoId: str, tenantId: str) -> bool:
         """
@@ -717,6 +873,7 @@ class UserService:
     async def userUpdateValidation(self, user: User, tenantId: str) -> User:
         """
         Validate user update.
+        Supports partial updates - only validates provided fields.
         """
         if not user.id or user.id.strip() == "":
             raise HTTPException(status_code=400, detail="User ID cannot be blank")
@@ -726,35 +883,48 @@ class UserService:
             user.email = Email(officialEmail=user.email)
         if isinstance(user.tenant, str):
             user.tenant = Tenant(tenantId=user.tenant)
-        if user.ssoId is None or isinstance(getattr(user.ssoId, 'id', None), str) is False:
-            # if ssoId is a plain string or missing, try to fix from existing or leave for check below
-            if isinstance(user.ssoId, str):
-                user.ssoId = SsoId(id=user.ssoId)
+        if user.ssoId is not None and isinstance(user.ssoId, str):
+            user.ssoId = SsoId(id=user.ssoId)
         
-        userDoc = await self.userRepository.findById(user.id)
-        if userDoc is None:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # Email checks - guard against None
-        if not user.email or not user.email.officialEmail:
-            raise HTTPException(status_code=400, detail="Email is required for update")
-        if not userDoc.email or not userDoc.email.officialEmail:
-            raise HTTPException(status_code=400, detail="Existing user record missing email")
-        if userDoc.email.officialEmail != user.email.officialEmail:
-            existingUserWithEmail = await self.userRepository.findByEmailAndTenant(user.email, user.tenant)
-            if existingUserWithEmail is not None:
-                raise HTTPException(status_code=400, detail="Email already exists for another user in this tenant")
-
-        # Tenant membership check should be ID-based to avoid SSO mismatches
+        # Email validation - format validation only (no uniqueness check across users)
+        # Email is not unique across users in a tenant - only validate format
+        if user.email is not None:
+            if not user.email.officialEmail:
+                raise HTTPException(status_code=400, detail="Email must have a valid officialEmail value")
+        
+        # Tenant validation - ensure user belongs to specified tenant
         tenant = Tenant(tenantId=tenantId)
         userInTenant = await self.userRepository.findByIdAndTenant(user.id, tenant)
         if userInTenant is None:
-            raise HTTPException(status_code=404, detail="User not available in tenant")
-        # Keep ssoId presence check for parity, but after membership confirmation
-        if not user.ssoId or not user.ssoId.id:
-            raise HTTPException(status_code=400, detail="ssoId is required for update")
+            raise HTTPException(
+                status_code=404,
+                detail=f"User {user.id} is not available in tenant {tenantId}"
+            )
         
-        user.password = userDoc.password
+        # SSO ID validation - only if ssoId is being updated
+        if user.ssoId is not None and user.ssoId.id:
+            # Retrieve existing user to check for SSO ID conflicts
+            existingUser = await self.userRepository.findById(user.id)
+            if existingUser is not None and existingUser.ssoId is not None:
+                # If SSO ID is changing, check for uniqueness
+                if existingUser.ssoId.id != user.ssoId.id:
+                    existingUserWithSsoId = await self.userRepository.findBySsoId(user.ssoId)
+                    if existingUserWithSsoId is not None and str(existingUserWithSsoId.id) != str(user.id):
+                        raise HTTPException(
+                            status_code=400,
+                            detail="SSO ID is already in use by another user"
+                        )
+        
+        # Preserve critical fields from existing record
+        existingUser = await self.userRepository.findById(user.id)
+        if existingUser is not None:
+            # Password should never be updated via update endpoint
+            user.password = existingUser.password
+            
+            # Preserve creation metadata if not provided
+            if user.userCreatedDate is None and existingUser.userCreatedDate is not None:
+                user.userCreatedDate = existingUser.userCreatedDate
+        
         return user
 
     async def bulkUserRegistrationValidationAndPasswordUpdation(self, userList: List[User]) -> List[User]:
