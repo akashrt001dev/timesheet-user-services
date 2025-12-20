@@ -182,10 +182,15 @@ class MongoRepository(ABC, Generic[T]):
             # Convert id -> _id for MongoDB format in nested objects
             result = {}
             for k, v in obj.items():
-                # Convert 'id' field to '_id' for MongoDB storage format
-                # This ensures nested objects (SsoId, Title, etc.) use _id
-                key_to_use = '_id' if k == 'id' else k
-                result[key_to_use] = self._to_bson_safe(v)
+                # Only convert 'id' to '_id' if the value is not None
+                # MongoDB will auto-generate _id if it's missing, so we skip None values
+                if k == 'id' and v is not None:
+                    result['_id'] = self._to_bson_safe(v)
+                elif k == 'id' and v is None:
+                    # Skip None id values - let MongoDB generate _id
+                    continue
+                else:
+                    result[k] = self._to_bson_safe(v)
             return result
         return obj
     
