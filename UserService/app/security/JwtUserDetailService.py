@@ -104,11 +104,17 @@ class JwtUserDetailService:
             
         except AccountLockedException:
             raise
+        except HTTPException:
+            raise
         except Exception as e:
+            import traceback
             self.LOG.error(f"Error creating JWT token: {str(e)}")
+            self.LOG.error(f"Traceback: {traceback.format_exc()}")
+            print(f"[LOGIN] ✗ JWT TOKEN CREATION ERROR: {str(e)}")
+            print(f"[LOGIN] ✗ Full traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error creating authentication token"
+                detail=f"Error creating authentication token: {str(e)}"
             )
 
     async def loadUserByUsername(self, username: str) -> UserDetails:
