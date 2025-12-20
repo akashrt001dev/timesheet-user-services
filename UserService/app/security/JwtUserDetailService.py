@@ -235,14 +235,22 @@ class JwtUserDetailService:
             userSession.loginDatetime = loginTime
             userSession.user = user_ref
             
+            print(f"[SESSION] Creating user session: userId={userId}, tenantId={tenantId}")
+            print(f"[SESSION] UserSession object: {userSession.model_dump() if hasattr(userSession, 'model_dump') else userSession.__dict__}")
+            
             saved_session = await self.userSessionRepository.save(userSession)
+            print(f"[SESSION] Session saved successfully with ID: {saved_session.id}")
             return saved_session.id
             
         except Exception as e:
+            import traceback
             self.LOG.error(f"Error setting user session: {str(e)}")
+            self.LOG.error(f"Traceback: {traceback.format_exc()}")
+            print(f"[SESSION] ✗ ERROR creating user session: {str(e)}")
+            print(f"[SESSION] ✗ Traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error creating user session"
+                detail=f"Error creating user session: {str(e)}"
             )
 
     async def setUserSessionLogoutTime(self, userSessionObjectID: str) -> None:

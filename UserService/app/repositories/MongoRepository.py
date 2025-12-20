@@ -116,25 +116,38 @@ class MongoRepository(ABC, Generic[T]):
         """Convert a model instance to a MongoDB document.
         Persist with internal field names (not aliases) so booleans remain 'is*' in storage.
         """
-        # Prefer Pydantic v2 JSON-friendly dump
-        if hasattr(model, 'model_dump'):
-            try:
-                # mode='json' ensures enums, dates, and datetimes are serialized to JSON-safe values
-                doc = model.model_dump(by_alias=False, mode='json')  # type: ignore[arg-type]
-                return self._to_bson_safe(doc)
-            except TypeError:
-                # Fallback to python mode if running on older minor versions
-                doc = model.model_dump(by_alias=False)
-                return self._to_bson_safe(doc)
-        # Pydantic v1 fallback: use JSON round-trip to coerce enums/dates
-        if hasattr(model, 'dict') and hasattr(model, 'json'):
-            try:
-                json_str = model.json(by_alias=False, default=pydantic_encoder) if pydantic_encoder else model.json(by_alias=False)
-                return self._to_bson_safe(json.loads(json_str))
-            except Exception:
-                return self._to_bson_safe(model.dict(by_alias=False))
-        # Last resort
-        return self._to_bson_safe(dict(model))
+        try:
+            # Prefer Pydantic v2 JSON-friendly dump
+            if hasattr(model, 'model_dump'):
+                try:
+                    # mode='json' ensures enums, dates, and datetimes are serialized to JSON-safe values
+                    doc = model.model_dump(by_alias=False, mode='json')  # type: ignore[arg-type]
+                    print(f"[MONGO] model_dump (json mode) successful for {type(model).__name__}")
+                    return self._to_bson_safe(doc)
+                except TypeError as te:
+                    print(f"[MONGO] model_dump (json mode) failed with TypeError: {str(te)}, trying python mode...")
+                    # Fallback to python mode if running on older minor versions
+                    doc = model.model_dump(by_alias=False)
+                    print(f"[MONGO] model_dump (python mode) successful for {type(model).__name__}")
+                    return self._to_bson_safe(doc)
+            # Pydantic v1 fallback: use JSON round-trip to coerce enums/dates
+            if hasattr(model, 'dict') and hasattr(model, 'json'):
+                try:
+                    json_str = model.json(by_alias=False, default=pydantic_encoder) if pydantic_encoder else model.json(by_alias=False)
+                    print(f"[MONGO] model.json() successful for {type(model).__name__}")
+                    return self._to_bson_safe(json.loads(json_str))
+                except Exception as e:
+                    print(f"[MONGO] model.json() failed: {str(e)}, falling back to dict()...")
+                    return self._to_bson_safe(model.dict(by_alias=False))
+            # Last resort
+            print(f"[MONGO] Using last-resort dict conversion for {type(model).__name__}")
+            return self._to_bson_safe(dict(model))
+        except Exception as e:
+            import traceback
+            print(f"[MONGO] ✗ Error in _model_to_document: {str(e)}")
+            print(f"[MONGO] ✗ Model type: {type(model)}")
+            print(f"[MONGO] ✗ Traceback: {traceback.format_exc()}")
+            raise
 
     def _to_bson_safe(self, obj: Any) -> Any:
         """Recursively convert objects to Mongo-safe JSON-friendly values.
@@ -268,16 +281,26 @@ class MongoRepository(ABC, Generic[T]):
     
     async def create(self, entity: T) -> T:
         """Create a new document."""
-        doc = self._model_to_document(entity)
-        result = await self.collection.insert_one(doc)
+        try:
+            doc = self._model_to_document(entity)
+            print(f"[MONGO] Inserting document: {doc}")
+            result = await self.collection.insert_one(doc)
 
-        # Update the entity with the inserted ID if it wasn't set
-        if hasattr(entity, 'id') and entity.id is None:
-            entity.id = str(result.inserted_id)
-        elif hasattr(entity, '_id') and getattr(entity, '_id') is None:
-            setattr(entity, '_id', str(result.inserted_id))
+            # Update the entity with the inserted ID if it wasn't set
+            if hasattr(entity, 'id') and entity.id is None:
+                entity.id = str(result.inserted_id)
+            elif hasattr(entity, '_id') and getattr(entity, '_id') is None:
+                setattr(entity, '_id', str(result.inserted_id))
 
-        return entity
+            print(f"[MONGO] Document created with ID: {result.inserted_id}")
+            return entity
+        except Exception as e:
+            import traceback
+            print(f"[MONGO] ✗ Error creating document: {str(e)}")
+            print(f"[MONGO] ✗ Entity type: {type(entity)}")
+            print(f"[MONGO] ✗ Entity: {entity}")
+            print(f"[MONGO] ✗ Traceback: {traceback.format_exc()}")
+            raise
     
     async def create_many(self, entities: List[T]) -> List[T]:
         """Create multiple documents."""
