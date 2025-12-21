@@ -323,7 +323,7 @@ class UserService:
             
             toAddress = [user.email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
@@ -381,7 +381,7 @@ class UserService:
             
             toAddress = [email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
@@ -1444,7 +1444,7 @@ class UserService:
             
             toAddress = [doc.email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
@@ -1476,7 +1476,7 @@ class UserService:
             
             toAddress = [doc.email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
@@ -1540,7 +1540,7 @@ class UserService:
             
             toAddress = [doc.email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
@@ -1662,7 +1662,7 @@ class UserService:
             # Handle default logo logic
             pass
         
-        await emailNotification.sendMail(
+        await emailNotification.send_mail(
             self.emailMessageSupplier,
             CONSTANTS.PRODUCER_BINDING_NAME,
             toAddress,
@@ -1718,7 +1718,7 @@ class UserService:
             
             toAddress = [user.email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
@@ -1752,7 +1752,7 @@ class UserService:
             
             toAddress = [user.email.officialEmail]
             
-            await emailNotification.sendMail(
+            await emailNotification.send_mail(
                 self.emailMessageSupplier,
                 CONSTANTS.PRODUCER_BINDING_NAME,
                 toAddress,
