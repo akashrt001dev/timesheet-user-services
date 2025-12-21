@@ -31,6 +31,7 @@ from ..valueobjects.Tenant import Tenant
 from ..valueobjects.Title import Title
 from ..valueobjects.UserType import UserType
 from .AccessScopeResponseDTO import AccessScopeResponseDTO
+from ..valueobjects.AccessScope import AccessScope, Role, Region
 
 class UserDTO(BaseModel):
     # Accept both field names and aliases across pydantic versions
@@ -53,7 +54,7 @@ class UserDTO(BaseModel):
     tenant: Optional['Tenant'] = None
     partnerId: Optional['PartnerId'] = None
     sites: Optional['Sites'] = None
-    accessScope: Optional['AccessScopeResponseDTO'] = None
+    accessScope: Optional['AccessScope'] = None
     # Accept lowercase 'npin' from requests, map to internal nPIN
     nPIN: Optional['NPIN'] = Field(None, alias="npin")
     serviceProviderType: Optional['ContractedServiceProviderType'] = None
@@ -87,8 +88,6 @@ class UserDTO(BaseModel):
         Only includes fields that are explicitly provided (not None).
         Supports partial updates by skipping None values.
         """
-        from ..aggregates.root.User import User
-        from ..valueobjects.AccessScope import AccessScope, Role, Region
         
         payload = {}
         
@@ -120,32 +119,37 @@ class UserDTO(BaseModel):
         if self.sites is not None:
             payload['sites'] = self.sites
         
-        # Convert AccessScopeResponseDTO to AccessScope domain model
+        # Handle AccessScope - can be raw AccessScope domain model or AccessScopeResponseDTO
         if self.accessScope is not None:
             try:
-                # AccessScopeResponseDTO has structure: roles[] and accessScopes[]
-                # Convert to domain AccessScope structure: roles[] and regions[]
-                access_scope_data = {}
+                # Check if it's already a domain AccessScope model (has 'regions' attribute)
+                if hasattr(self.accessScope, 'regions') and not hasattr(self.accessScope, 'accessScopes'):
+                    # It's already the domain model - use directly
+                    payload['accessScope'] = self.accessScope
+                    print(f"[to_domain] Using provided AccessScope domain model")
                 
-                # Extract roles from the response DTO
-                if self.accessScope.roles:
-                    access_scope_data['roles'] = [
-                        Role(
-                            id=role.id,
-                            roleName=role.roleName,
-                            roleDescription=role.roleDescription,
-                            roleType=role.roleType,
-                            rolePerformerTypes=role.rolePerformerTypes or []
-                        )
-                        for role in self.accessScope.roles
-                    ]
-                else:
-                    access_scope_data['roles'] = []
-                
-                # Extract regions from accessScopes
-                regions = []
-                if self.accessScope.accessScopes:
-                    # Each AccessScopeDetailDTO can have regions
+                # Check if it's AccessScopeResponseDTO (has 'accessScopes' attribute)
+                elif hasattr(self.accessScope, 'accessScopes'):
+                    # Convert AccessScopeResponseDTO to AccessScope domain model
+                    access_scope_data = {}
+                    
+                    # Extract roles from the response DTO
+                    if hasattr(self.accessScope, 'roles') and self.accessScope.roles:
+                        access_scope_data['roles'] = [
+                            Role(
+                                id=role.id,
+                                roleName=role.roleName,
+                                roleDescription=role.roleDescription,
+                                roleType=role.roleType,
+                                rolePerformerTypes=role.rolePerformerTypes or []
+                            )
+                            for role in self.accessScope.roles
+                        ]
+                    else:
+                        access_scope_data['roles'] = []
+                    
+                    # Extract regions from accessScopes
+                    regions = []
                     for scope_detail in self.accessScope.accessScopes:
                         if scope_detail.regions:
                             # Convert RegionDTO to Region domain model
@@ -158,18 +162,31 @@ class UserDTO(BaseModel):
                                 except Exception as region_e:
                                     print(f"Warning: Could not convert region: {region_e}")
                                     continue
+                    
+                    access_scope_data['regions'] = regions or []
+                    access_scope_data['allRegionsApplicable'] = False
+                    
+                    payload['accessScope'] = AccessScope(**access_scope_data)
+                    print(f"[to_domain] Successfully converted AccessScopeResponseDTO with {len(regions)} regions")
                 
-                access_scope_data['regions'] = regions or []
-                access_scope_data['allRegionsApplicable'] = False
-                
-                payload['accessScope'] = AccessScope(**access_scope_data)
-                print(f"[to_domain] Successfully converted accessScope with {len(regions)} regions")
+                # Otherwise treat as dict-like structure and convert to domain model
+                else:
+                    # Try to convert dict/plain object to AccessScope domain model
+                    if hasattr(self.accessScope, 'model_dump'):
+                        scope_dict = self.accessScope.model_dump()
+                    elif isinstance(self.accessScope, dict):
+                        scope_dict = self.accessScope
+                    else:
+                        scope_dict = self.accessScope.__dict__
+                    
+                    payload['accessScope'] = AccessScope(**scope_dict)
+                    print(f"[to_domain] Converted plain accessScope structure to domain model")
+            
             except Exception as e:
                 # If conversion fails, log and skip accessScope
                 print(f"Warning: Could not convert accessScope: {e}")
                 import traceback
                 traceback.print_exc()
-                pass
         
         if self.nPIN is not None:
             payload['nPIN'] = self.nPIN
