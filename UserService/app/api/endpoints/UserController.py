@@ -63,6 +63,13 @@ async def notifyUser(
     Equivalent to Java: @GetMapping("/{id}/notify")
     public ResponseEntity<?> notifyUser(@PathVariable("id") String userId, @RequestHeader(value = "X-Authorization") String authorization, @RequestHeader(value = "X-tenantID") String tenantId)
     """
+    # Validate id parameter
+    if not id or id.strip() == "" or id.lower() == "null":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is required and cannot be null or empty."
+        )
+    
     try:
         result = await controller.userService.notifyUser(id)
         return {"status": "success", "data": result}
@@ -958,6 +965,13 @@ async def remindContractors(
         404: User not found
         400: No contractors associated or email sending failed
     """
+    # Validate id parameter
+    if not id or id.strip() == "" or id.lower() == "null":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is required and cannot be null or empty."
+        )
+    
     try:
         await controller.userService.remindContractors(id)
         return {"status": "success", "message": "Contractor reminder sent successfully"}
@@ -1001,6 +1015,13 @@ async def blockOrDeactivateUser(
         404: User not found in tenant
         401: Unauthorized to perform action
     """
+    # Validate id parameter
+    if not id or id.strip() == "" or id.lower() == "null":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is required and cannot be null or empty."
+        )
+    
     try:
         result = await controller.userService.blockOrDeactivateUser(
             X_Authorization, X_tenantID, id, action
@@ -1071,6 +1092,13 @@ async def getUserAccessScope(
         404: User not found in tenant
         401: Unauthorized to view user's access scope
     """
+    # Validate userId parameter
+    if not userId or userId.strip() == "" or userId.lower() == "null":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is required and cannot be null or empty."
+        )
+    
     try:
         result = await controller.userService.getUserAccessScope(X_tenantID, userId)
         
@@ -1509,6 +1537,13 @@ async def getUserListById(
         404: User not found in tenant
         400: Invalid user ID format
     """
+    # Validate userId parameter
+    if not userId or userId.strip() == "" or userId.lower() == "null":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User ID is required and cannot be null or empty. Please ensure you are logged in and have an active session."
+        )
+    
     try:
         user = await controller.userService.getUserListById(X_tenantID, userId)
         user_dict = user.model_dump(by_alias=True, exclude_none=False)
