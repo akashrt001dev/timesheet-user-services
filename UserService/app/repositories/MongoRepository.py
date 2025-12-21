@@ -81,11 +81,12 @@ class MongoRepository(ABC, Generic[T]):
         Pydantic expects string values. This method:
         1. Converts all ObjectId instances to strings
         2. Converts nested { _id: value } to { id: value } for value objects
+        3. Removes the _id field from the output (will be populated via id field)
         """
         if obj is None:
             return None
         
-        # Handle ObjectId
+        # Handle ObjectId - convert to string
         if isinstance(obj, ObjectId):
             return str(obj)
         
@@ -100,8 +101,12 @@ class MongoRepository(ABC, Generic[T]):
                 converted[key] = self._convert_objectids_and_ids(value)
             
             # Handle top-level _id -> id conversion
+            # This maps MongoDB's _id to Pydantic's id field
             if "_id" in converted and "id" not in converted:
                 converted["id"] = converted.pop("_id")
+            elif "_id" in converted and "id" in converted:
+                # If both exist, keep id and remove _id
+                converted.pop("_id")
             
             return converted
         

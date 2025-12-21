@@ -26,7 +26,7 @@ from ...valueobjects.UserType import UserType
 
 
 class User(BaseModel):
-    id: Optional[str] = None
+    id: Optional[str] = Field(None, alias="_id", serialization_alias="id")
 
     # Required fields (as per Spring Boot @NotNull)
     name: Name
@@ -85,7 +85,8 @@ class User(BaseModel):
     externalId: Optional[str] = None
 
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True  # Allow both alias (_id) and field name (id) when parsing
+        # Note: Pydantic v2 uses populate_by_name instead of allow_population_by_field_name
 
     # -------- Validators -------- #
 
