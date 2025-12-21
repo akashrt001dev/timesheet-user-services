@@ -10,6 +10,7 @@ from ...valueobjects.ActionBy import ActionBy
 from ...valueobjects.Address import Address
 from ...valueobjects.BillingInfo import BillingInfo
 from ...valueobjects.Communication import Communication
+from ...valueobjects.Contract import Contract
 from ...valueobjects.ContractedServiceProviderType import ContractedServiceProviderType
 from ...valueobjects.Email import Email
 from ...valueobjects.LicenceDetails import LicenceDetails
@@ -46,6 +47,7 @@ class User(BaseModel):
 
     password: Optional[Password] = None  # Optional for update
     roles: List[Role] = []
+    contracts: Optional[List[Contract]] = None
     accessScope: Optional[AccessScope] = None
     address: Optional[Address] = None
 
