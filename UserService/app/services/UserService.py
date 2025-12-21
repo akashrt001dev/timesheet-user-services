@@ -591,7 +591,6 @@ class UserService:
             invited, partnerId, sites, titles, sitedepartments, contractIdOnFile,
             userTypes, searchText, offset, limit
         )
-        logger.info(f"QueryProcessor returned result with {len(result.users) if result and result.users else 0} users")
         return result
 
     async def updateUser(self, user: User, tenantId: str) -> str:

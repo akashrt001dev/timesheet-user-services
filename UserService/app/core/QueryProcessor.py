@@ -120,6 +120,8 @@ class QueryProcessor:
                 return UserListDTO(users=[dummy_user], numberOfElements=1)
 
         # Build basic filters
+        if firstName or lastName:
+            offset = 0
         self.userNameQuery(firstName, lastName, query)
 
         if activated is not None:
