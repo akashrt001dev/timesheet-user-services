@@ -21,7 +21,12 @@ class Name(BaseModel):
             return None
         return v
 
-    def getFullName(self) -> str:
+    @property
+    def fullName(self) -> str:
         if self.middleName:
             return f"{self.firstName} {self.middleName} {self.lastName}"
         return f"{self.firstName} {self.lastName}"
+
+    def getFullName(self) -> str:
+        """Backward compatibility method. Use fullName property instead."""
+        return self.fullName
