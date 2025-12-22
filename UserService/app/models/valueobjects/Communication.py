@@ -11,8 +11,8 @@ class Communication(BaseModel):
     else:
         class Config:
             allow_population_by_field_name = True
-    personalEmail: Optional[str] = None  # Make optional since it's missing from MongoDB docs
-    mobileNumber: Optional[str] = Field(None, alias="phoneNumber")  # Map to phoneNumber field
-    landlineNumber: Optional[str] = Field(None, alias="alternatePhoneNumber")
+    personalEmail: Optional[str] = None
+    mobileNumber: Optional[str] = None
+    landlineNumber: Optional[str] = None
     faxNumber: Optional[str] = None
     isMobileNumberNotApplicable: bool = Field(False, alias="mobileNumberNotApplicable")

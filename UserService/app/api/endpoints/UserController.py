@@ -204,7 +204,8 @@ async def getUserList(
             transformed_users = []
             for user in result.users:
                 # Serialize with all fields including None values (exclude_none=False)
-                user_dict = user.model_dump(by_alias=True, exclude_none=False) if hasattr(user, 'model_dump') else user
+                # Use by_alias=False to keep internal field names (mobileNumber, not phoneNumber)
+                user_dict = user.model_dump(by_alias=False, exclude_none=False) if hasattr(user, 'model_dump') else user
                 
                 # Remove npin only if it's None to avoid validation issues
                 if "npin" in user_dict and user_dict["npin"] is None:
@@ -1546,7 +1547,8 @@ async def getUserListById(
     
     try:
         user = await controller.userService.getUserListById(X_tenantID, userId)
-        user_dict = user.model_dump(by_alias=True, exclude_none=False)
+        # Use by_alias=False to keep internal field names (mobileNumber, not phoneNumber)
+        user_dict = user.model_dump(by_alias=False, exclude_none=False)
         print(user_dict)
         # Flatten sites structure - extract sites array from sites.sites
         if "sites" in user_dict and isinstance(user_dict["sites"], dict) and "sites" in user_dict["sites"]:
