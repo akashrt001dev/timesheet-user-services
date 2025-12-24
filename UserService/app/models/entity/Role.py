@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from ..valueobjects.RoleType import RoleType
+from ..valueobjects.Tenant import Tenant
 
 class Role(BaseModel):
     id: Optional[str] = None
@@ -11,7 +12,7 @@ class Role(BaseModel):
     isActive: Optional[bool] = True
     createdDate: Optional[datetime] = None
     lastModifiedDate: Optional[datetime] = None
-    tenant: Optional[str] = None
+    tenant: Optional[Tenant] = None
     
     def __hash__(self):
         return hash((self.id, self.roleName))

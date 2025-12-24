@@ -30,7 +30,7 @@ async def createNewRole(
 @router.get("")
 async def getRoles(
     # X_Authorization: str = Header(alias="X-Authorization"),
-    roleType: Optional[List[str]] = Query(None, alias="roleType"),
+    roleType: Optional[List[str]] = Query(None),
     roleService: RoleService = Depends(get_role_service_dep)
 ) -> List[Role]:
     """

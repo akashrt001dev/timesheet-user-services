@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime
 
 from ..valueobjects.RoleType import RoleType
+from ..valueobjects.Tenant import Tenant
 
 class RoleDTO(BaseModel):
     id: Optional[str] = None
@@ -12,7 +13,7 @@ class RoleDTO(BaseModel):
     isActive: Optional[bool] = True
     createdDate: Optional[datetime] = None
     lastModifiedDate: Optional[datetime] = None
-    tenant: Optional[str] = None
+    tenant: Optional[Tenant] = None
 
     def to_domain(self):
         from ..entity.Role import Role
