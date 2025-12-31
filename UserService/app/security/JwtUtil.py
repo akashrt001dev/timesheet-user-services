@@ -59,7 +59,7 @@ class JwtUtil:
         claims = {
             "id": user.id,
             "userName": user.name.getFullName() if user.name else "",
-            "suffix": user.name.suffix if user.name and user.name.suffix else "",
+            "suffix": user.name.suffix.suffix if user.name and user.name.suffix and user.name.suffix.suffix else "",
             "roles": ",".join([role.roleName for role in user.roles if role]),
             "userSessionObjectId": userSessionObjectId,
             "accessLevel": user.accessLevel.value if user.accessLevel else "",
