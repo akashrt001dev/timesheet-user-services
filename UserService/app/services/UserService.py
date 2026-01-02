@@ -2762,96 +2762,137 @@ class UserService:
                     roles_list.append(role_dict)
             
             # Build accessScopes with regions and sites structure
+            # Extract regions from user.accessScope if it exists, otherwise derive from user.sites
             access_scopes = []
-            if user.roles:
-                for role in roles_list:
-                    # Build regions structure for this role
-                    regions = []
+            
+            # Helper function to build regions structure
+            def build_regions_from_sites(sites_list, roles_for_scope):
+                """Build regions structure from sites"""
+                regions = []
+                if sites_list:
+                    # Group sites by region
+                    regions_dict = {}
                     
-                    if user.sites and user.sites.sites:
-                        # Group sites by region
-                        regions_dict = {}
+                    for site in sites_list:
+                        # Get region info if available
+                        region_id = "default_region"
+                        region_name = "Default Region"
                         
-                        for site in user.sites.sites:
-                            # Get region info if available
-                            region_id = "default_region"
-                            region_name = "Default Region"
-                            
-                            if hasattr(site, 'region') and site.region:
-                                if hasattr(site.region, 'id'):
-                                    region_id = site.region.id
-                                if hasattr(site.region, 'regionName'):
-                                    if hasattr(site.region.regionName, 'regionName'):
-                                        region_name = site.region.regionName.regionName
-                                    else:
-                                        region_name = str(site.region.regionName)
-                            
-                            # Initialize region if not exists
-                            if region_id not in regions_dict:
-                                regions_dict[region_id] = {
-                                    "id": region_id,
-                                    "regionName": {
-                                        "regionName": region_name
-                                    },
-                                    "roles": [],
-                                    "allSitesApplicable": False,
-                                    "sites": []
-                                }
-                            
-                            # Extract site name string - handle both string and SiteName object
-                            site_name_str = ""
-                            if hasattr(site, 'siteName'):
-                                if hasattr(site.siteName, 'siteName'):
-                                    # It's a SiteName object with siteName attribute
-                                    site_name_str = site.siteName.siteName
+                        if hasattr(site, 'region') and site.region:
+                            if hasattr(site.region, 'id'):
+                                region_id = site.region.id
+                            if hasattr(site.region, 'regionName'):
+                                if hasattr(site.region.regionName, 'regionName'):
+                                    region_name = site.region.regionName.regionName
                                 else:
-                                    # It's a string already
-                                    site_name_str = str(site.siteName)
-                            
-                            # Build site info
-                            site_dict = {
-                                "id": site.id if hasattr(site, 'id') else "",
-                                "siteName": {
-                                    "siteName": site_name_str
-                                },
-                                "departmentList": {
-                                    "departments": []
-                                },
-                                "siteResponsibility": {},
-                                "region": {
-                                    "id": region_id,
-                                    "regionName": {
-                                        "regionName": region_name
-                                    }
-                                },
-                                "roles": [role]  # Include the role for this site
-                            }
-                            
-                            # Add site responsibility if available
-                            if hasattr(site, 'siteResponsibility') and site.siteResponsibility:
-                                site_dict["siteResponsibility"] = {
-                                    "title": site.siteResponsibility.title if hasattr(site.siteResponsibility, 'title') else "",
-                                    "id": site.siteResponsibility.id if hasattr(site.siteResponsibility, 'id') else ""
-                                }
-                            
-                            # Add departments if available
-                            if hasattr(site, 'departments') and site.departments:
-                                site_dict["departmentList"]["departments"] = site.departments
-                            
-                            regions_dict[region_id]["sites"].append(site_dict)
+                                    region_name = str(site.region.regionName)
                         
-                        # Convert regions_dict to list
-                        regions = list(regions_dict.values())
+                        # Initialize region if not exists
+                        if region_id not in regions_dict:
+                            regions_dict[region_id] = {
+                                "id": region_id,
+                                "regionName": {
+                                    "regionName": region_name
+                                },
+                                "roles": [],
+                                "allSitesApplicable": False,
+                                "sites": []
+                            }
+                        
+                        # Extract site name string - handle both string and SiteName object
+                        site_name_str = ""
+                        if hasattr(site, 'siteName'):
+                            if hasattr(site.siteName, 'siteName'):
+                                # It's a SiteName object with siteName attribute
+                                site_name_str = site.siteName.siteName
+                            else:
+                                # It's a string already
+                                site_name_str = str(site.siteName)
+                        
+                        # Build site info
+                        site_dict = {
+                            "id": site.id if hasattr(site, 'id') else "",
+                            "siteName": {
+                                "siteName": site_name_str
+                            },
+                            "departmentList": {
+                                "departments": []
+                            },
+                            "siteResponsibility": {},
+                            "region": {
+                                "id": region_id,
+                                "regionName": {
+                                    "regionName": region_name
+                                }
+                            },
+                            "roles": roles_for_scope  # Include the roles for this site
+                        }
+                        
+                        # Add site responsibility if available
+                        if hasattr(site, 'siteResponsibility') and site.siteResponsibility:
+                            site_dict["siteResponsibility"] = {
+                                "title": site.siteResponsibility.title if hasattr(site.siteResponsibility, 'title') else "",
+                                "id": site.siteResponsibility.id if hasattr(site.siteResponsibility, 'id') else ""
+                            }
+                        
+                        # Add departments if available
+                        if hasattr(site, 'departments') and site.departments:
+                            site_dict["departmentList"]["departments"] = site.departments
+                        
+                        regions_dict[region_id]["sites"].append(site_dict)
                     
-                    # Create access scope entry for this role
-                    access_scope_entry = {
-                        "role": role,
-                        "allRegionsApplicable": False,
-                        "regions": regions
-                    }
-                    access_scopes.append(access_scope_entry)
+                    # Convert regions_dict to list
+                    regions = list(regions_dict.values())
+                
+                return regions
+            
+            # Check if user has accessScope (from database)
+            if user.accessScope and user.accessScope.regions:
+                # Extract regions from user.accessScope
+                for region in user.accessScope.regions:
+                    # Convert region to dict if needed
+                    if hasattr(region, 'model_dump'):
+                        region_dict = region.model_dump(by_alias=False)
+                    elif hasattr(region, 'dict'):
+                        region_dict = region.dict()
+                    else:
+                        region_dict = region.__dict__ if hasattr(region, '__dict__') else {}
+                    
+                    # Handle _id to id mapping
+                    if "id" not in region_dict and "_id" in region_dict:
+                        region_dict["id"] = region_dict.pop("_id")
+                    
+                    access_scopes.append({
+                        "role": roles_list[0] if roles_list else None,  # Use first role if available
+                        "allRegionsApplicable": user.accessScope.allRegionsApplicable if hasattr(user.accessScope, 'allRegionsApplicable') else False,
+                        "regions": [region_dict]
+                    })
+            else:
+                # Build from user.sites if user.accessScope doesn't exist
+                if user.roles:  
+                    # If user has roles, create access scope for each role
+                    for role in roles_list:
+                        regions = build_regions_from_sites(user.sites.sites if user.sites else [], [role])
+                        access_scope_entry = {
+                            "role": role,
+                            "allRegionsApplicable": False,
+                            "regions": regions
+                        }
+                        access_scopes.append(access_scope_entry)
+                else:
+                    # If user has no roles, still provide access scope from sites
+                    regions = build_regions_from_sites(user.sites.sites if user.sites else [], [])
+                    if regions:
+                        access_scope_entry = {
+                            "role": None,
+                            "allRegionsApplicable": False,
+                            "regions": regions
+                        }
+                        access_scopes.append(access_scope_entry)
             
             # Build final response
+            
+
             response = {
                 "userId": userId,
                 "roles": roles_list,

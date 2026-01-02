@@ -1102,7 +1102,7 @@ async def getUserAccessScope(
     
     try:
         result = await controller.userService.getUserAccessScope(X_tenantID, userId)
-        
+        print(f"[GET /{userId}/accessScope] Raw result: {result}")
         # Transform the result to match AccessScopeResponseDTO structure
         if isinstance(result, dict):
             # Convert roles array
