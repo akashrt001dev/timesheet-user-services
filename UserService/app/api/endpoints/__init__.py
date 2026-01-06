@@ -8,11 +8,13 @@ from . import AuthController
 from . import RoleController
 from . import SurrogateController
 from . import ScimController
+from . import UserClientController
 
 __all__ = [
     "UserController",
     "AuthController", 
     "RoleController",
     "SurrogateController",
-    "ScimController"
+    "ScimController",
+    "UserClientController"
 ]

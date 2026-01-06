@@ -26,6 +26,10 @@ class AppConstants:
     
     USER_PRODUCER_BINDING_NAME: str = "userProducer-out-1"
     
+    # URL configuration for domain and SSO URL creation
+    PROTOCOL: str = "https://"
+    APP_BASE_URL: str = "timesmart.ai"
+    
     SCIM_PROXY: str = "proxy"
     DUMMY_USER_ID: str = "dummyuser@timesmartai.com"
     SCIM_ACTIVITY_LOGGER: str = "activitylogger"

@@ -15,6 +15,7 @@ from app.repositories.UserRepository import UserRepository
 from app.repositories.RoleRepository import RoleRepository
 from app.repositories.SurrogateLogRepository import SurrogateLogRepository
 from app.repositories.UserSessionRepository import UserSessionRepository
+from app.clients.EntityClient import EntityClient
 from app.db.mongodb import get_database
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.core.QueryProcessor import QueryProcessor
@@ -31,6 +32,7 @@ _surrogate_log_repository = None
 _user_session_repository = None
 _resource_endpoint = None
 _oauth_decoder = None
+_entity_client = None
 
 def get_database_dependency() -> AsyncIOMotorDatabase:
     """Get database connection"""
@@ -217,3 +219,9 @@ async def get_jwt_user_detail_service():
     session_repo = await get_user_session_repository()
     jwt_util = await get_jwt_util()
     return RealJwtUserDetailService(user_repo, session_repo, jwt_util)
+def get_entity_client() -> EntityClient:
+    """Get EntityClient instance"""
+    global _entity_client
+    if _entity_client is None:
+        _entity_client = EntityClient()
+    return _entity_client
