@@ -56,7 +56,7 @@ class EurekaClient:
                 },
                 "homePageUrl": f"http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/",
                 # Many Eureka setups check Spring Boot's actuator; we map to /health and /openapi.json as info
-                "statusPageUrl": f"http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/openapi.json",
+                "statusPageUrl": f"http://{settings.SERVER_HOST}:{settings.SERVER_PORT}",
                 "healthCheckUrl": f"http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/health",
                 "vipAddress": self.app_name,
                 "secureVipAddress": self.app_name,
@@ -66,6 +66,7 @@ class EurekaClient:
                 "actionType": "ADDED",
             }
         }
+    
 
     async def register(self) -> bool:
         try:
@@ -77,7 +78,6 @@ class EurekaClient:
                     headers={"Content-Type": "application/json"},
                     timeout=10.0,
                 )
-
             if resp.status_code in (200, 204):
                 self.registered = True
                 logger.info(

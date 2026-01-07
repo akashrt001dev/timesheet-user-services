@@ -293,7 +293,7 @@ EUREKA_ENABLED=true
 EUREKA_SERVER_URL=http://localhost:8761/eureka
 SERVICE_NAME=user-management-service
 SERVER_HOST=localhost
-SERVER_PORT=8000
+SERVER_PORT=8001
 
 # External Services
 CONTRACT_SERVICE_URL=http://localhost:8002/
