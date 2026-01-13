@@ -32,6 +32,8 @@ services:
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
       - AWS_REGION=${AWS_REGION}
       - AWS_BUCKET_URL=${AWS_BUCKET_URL}
+      - EUREKA_URL=${EUREKA_SERVER_URL}
+      - EUREKA_SERVER_URL=${EUREKA_SERVER_URL}
     volumes:
       - ./:/app
       - ./logs:/app/logs

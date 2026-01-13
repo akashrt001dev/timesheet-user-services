@@ -71,6 +71,7 @@ class EurekaClient:
     async def register(self) -> bool:
         try:
             payload = self._instance_info()
+
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     f"{self.eureka_url}/apps/{self.app_name.upper()}",
@@ -78,6 +79,8 @@ class EurekaClient:
                     headers={"Content-Type": "application/json"},
                     timeout=10.0,
                 )
+                
+           
             if resp.status_code in (200, 204):
                 self.registered = True
                 logger.info(

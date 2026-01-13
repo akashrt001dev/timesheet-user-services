@@ -34,8 +34,26 @@ class Role(BaseModel):
     rolePerformerTypes: List[str] = []
 
 
+class SiteName(BaseModel):
+    siteName: Optional[str] = None
+
+
+class SiteResponsibility(BaseModel):
+    title: Optional[str] = None
+    id: Optional[str] = None
+
+
+class SiteRegion(BaseModel):
+    """Region reference within a Site (to avoid circular dependency with Region class)"""
+    id: Optional[str] = None
+    regionName: Optional["RegionName"] = None
+
+
 class Site(BaseModel):
     id: Optional[str] = None
+    siteName: Optional[SiteName] = None
+    siteResponsibility: Optional[SiteResponsibility] = None
+    region: Optional[SiteRegion] = None
     roles: List[Role] = []
     departmentList: Optional[DepartmentList] = None
 
